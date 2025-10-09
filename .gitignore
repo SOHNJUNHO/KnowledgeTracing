@@ -1,3 +1,4 @@
 /.DS_Store
 /.venv
 /testing
+/skill_builder_data.csv # too large for GitHub
