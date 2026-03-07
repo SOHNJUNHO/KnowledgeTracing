@@ -1,5 +1,6 @@
 test/
-
+for_README.md\
+CLAUDE.md
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

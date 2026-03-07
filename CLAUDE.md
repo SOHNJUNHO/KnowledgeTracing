@@ -2,7 +2,7 @@
 
 ## 1. Context & Background
 - **Developer Background:** Research-focused (Thesis) transitioning to AI Agent Engineering.
-- **Goal:** Build a production-ready Portfolio to show recruiters I understand 2026 Agentic patterns.
+- **Goal:** Build a production-ready system that aligns with  2026 Agentic patterns.
 - **Legacy Code:** Old training scripts (`.py`) and messy GraphRAG experiments (`.ipynb`).
 
 ## 2. The New Architecture (The Target)
