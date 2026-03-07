@@ -144,10 +144,24 @@ tools.yaml                    # 사전 정의된 Cypher 쿼리 (MCP 도구 정�
 
 ```
 tutor_pipeline  [trace]
-  ├── run_bkt      — 타임스텝별 BKT 파라미터, 디바이스 메타데이터
-  ├── diagnose     — LLM 생성: 프롬프트 + 숙련도 출력
-  └── recommend    — 지식 요소별 LLM 생성: 그래프 컨텍스트 + 피드백
+  ├── run_bkt      — 매 시점별 BKT 파라미터
+  ├── diagnose     — BKT 파리미터에 대한 자연어 해석과 각 지식개념별 숙련도 출력
+  └── recommend    — 지식 개념별 자연어 피드백 생성s
 ```
+
+**1. LangGraph 오케스트레이션 파이프라인**
+![파이프라인 트레이스](./assets/trace-tree.png)
+*(각 노드의 실행 시간, 통신 계층 구조 및 토큰 사용 비용)*
+
+**2. BKT 파라미터 기반 숙련도 진단 (Neuro-to-Symbolic Bridge)**
+![진단 노드](./assets/diagnose.png)
+*(단순 정오답이 아닌 BKT 파라미터 수치를 논리적 근거로 삼아 LLM이 숙련도(상/중/하)를 진단하는 과정)*
+
+**4. Agentic GraphRAG 맞춤형 학습 피드백 생성**
+![추천 노드](./assets/recommend.png)
+*(진단된 숙련도를 바탕으로 지식 그래프에서 연계 개념을 검색하고, 이를 바탕으로 최종 생성된 맞춤형 피드백)*
+
+
 
 ---
 
@@ -165,4 +179,4 @@ tutor_pipeline  [trace]
 ---
 
 ## 데이터셋
-- **AI-Hub** — 수학분야 학습자 역량 측정 데이터
+- **AI-Hub** — 수학분야 학습자 역량 측정 데이터, https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=data&dataSetSn=133

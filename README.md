@@ -152,8 +152,8 @@ All pipeline runs are traced in Langfuse with the following span hierarchy:
 
 ```
 tutor_pipeline  [trace]
-  ├── run_bkt      — BKT parameters per timestep, device metadata
-  ├── diagnose     — LLM generation: prompt + proficiency output
+  ├── run_bkt      — BKT parameters per timestep
+  ├── diagnose     — LLM generation: diagnosis in natural language, proficiency
   └── recommend    — LLM generation per skill: graph context + feedback
 ```
 
