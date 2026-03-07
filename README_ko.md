@@ -150,16 +150,21 @@ tutor_pipeline  [trace]
 ```
 
 **1. LangGraph 오케스트레이션 파이프라인**
-![파이프라인 트레이스](./assets/trace-tree.png)
 *(각 노드의 실행 시간, 통신 계층 구조 및 토큰 사용 비용)*
+![파이프라인 트레이스](./assets/trace-tree.png)
 
-**2. BKT 파라미터 기반 숙련도 진단 (Neuro-to-Symbolic Bridge)**
-![진단 노드](./assets/diagnose.png)
+**2. BKT 파라미터 기반 숙련도 진단**
 *(단순 정오답이 아닌 BKT 파라미터 수치를 논리적 근거로 삼아 LLM이 숙련도(상/중/하)를 진단하는 과정)*
+**[Input: 추출된 BKT 파라미터]**
+![진단 노드 입력](./assets/diagnose-input.png)
 
-**4. Agentic GraphRAG 맞춤형 학습 피드백 생성**
-![추천 노드](./assets/recommend.png)
+**[Output: LLM의 숙련도 진단 및 추론]**
+![진단 노드 출력](./assets/diagnose-output.png)
+
+**3. Agentic GraphRAG 맞춤형 학습 피드백 생성**
 *(진단된 숙련도를 바탕으로 지식 그래프에서 연계 개념을 검색하고, 이를 바탕으로 최종 생성된 맞춤형 피드백)*
+![추천 노드](./assets/recommend.png)
+
 
 
 

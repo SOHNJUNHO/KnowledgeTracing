@@ -157,6 +157,18 @@ tutor_pipeline  [trace]
   └── recommend    — LLM generation per skill: graph context + feedback
 ```
 
+**1. LangGraph Orchestration Pipeline**
+![Pipeline Trace](./assets/trace-tree.png)
+*(Execution time per node, span hierarchy, and token cost)*
+
+**2. BKT Parameter-Based Proficiency Diagnosis (Neuro-to-Symbolic Bridge)**
+![Diagnosis Node](./assets/diagnose.png)
+*(The LLM diagnosing proficiency (High / Mid / Low) using BKT parameter values as logical evidence — not raw correct/incorrect answers)*
+
+**3. Agentic GraphRAG Personalized Feedback Generation**
+![Recommendation Node](./assets/recommend.png)
+*(Retrieving related concepts from the knowledge graph based on the diagnosed proficiency, then generating the final personalized feedback)*
+
 ---
 
 ## References
