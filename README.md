@@ -158,12 +158,17 @@ tutor_pipeline  [trace]
 ```
 
 **1. LangGraph Orchestration Pipeline**
+- Execution time per node, span hierarchy, and token cost
 ![Pipeline Trace](./assets/trace-tree.png)
-*(Execution time per node, span hierarchy, and token cost)*
 
-**2. BKT Parameter-Based Proficiency Diagnosis (Neuro-to-Symbolic Bridge)**
+**2. BKT Parameter-Based Proficiency Diagnosis**
+- The LLM diagnosing proficiency (High / Mid / Low) using BKT parameter values as logical evidence — not raw correct/incorrect answers
+**[Input: BKT Parameters]**
+![Diagnosis Node Input](./assets/diagnose-input.png)
+
+**[Output: Agent's diagnosis]**
 ![Diagnosis Node](./assets/diagnose.png)
-*(The LLM diagnosing proficiency (High / Mid / Low) using BKT parameter values as logical evidence — not raw correct/incorrect answers)*
+
 
 **3. Agentic GraphRAG Personalized Feedback Generation**
 ![Recommendation Node](./assets/recommend.png)
