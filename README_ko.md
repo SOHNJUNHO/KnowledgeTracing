@@ -159,10 +159,10 @@ tutor_pipeline  [trace]
 **2. BKT 파라미터 기반 숙련도 진단**
 - 단순 정오답이 아닌 BKT 파라미터 수치를 논리적 근거로 삼아 LLM이 숙련도(상/중/하)를 진단하는 과정
 
-**[Input: 추출된 BKT 파라미터]**
+**[추출된 BKT 파라미터]**
 ![진단 노드 입력](./assets/diagnose-input.png)
 
-**[Output: 진단 에이전트의 숙련도 진단 및 추론]**
+**[진단 에이전트의 숙련도 진단 및 추론]**
 ![진단 노드 출력](./assets/diagnose-output.png)
 
 

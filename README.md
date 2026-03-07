@@ -163,10 +163,10 @@ tutor_pipeline  [trace]
 
 **2. BKT Parameter-Based Proficiency Diagnosis**
 - The LLM diagnosing proficiency (High / Mid / Low) using BKT parameter values as logical evidence — not raw correct/incorrect answers
-**[Input: BKT Parameters]**
+**[BKT Parameters as Input]**
 ![Diagnosis Node Input](./assets/diagnose-input.png)
 
-**[Output: Agent's diagnosis]**
+**[Agent's diagnosis as Output]**
 ![Diagnosis Node](./assets/diagnose.png)
 
 
