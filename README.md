@@ -69,16 +69,16 @@ Student Interaction History (skill_id, correct) × T timesteps
 ## Key Design Decisions
 
 **1. BKT Parameters as LLM Input**
-Unlike conventional deep learning KT models that output proficiency directly through uninterpretable neural computations, BKTransformer derives proficiency by applying Bayes' theorem to explicit BKT parameters. This provides transparency into how and why each correctness probability was produced.
+- Unlike conventional deep learning KT models that output proficiency directly through uninterpretable neural computations, BKTransformer derives proficiency by applying Bayes' theorem to explicit BKT parameters. This provides transparency into how and why each correctness probability was produced.
 
 **2. Predefined Tool Selection**
-The recommendation agent does not decide which Cypher query to run. The proficiency level from the diagnosis agent determines the query. This guarantees transparency in the GraphRAG retrieval step.
+- The recommendation agent does not decide which Cypher query to run. The proficiency level from the diagnosis agent determines the query. This guarantees transparency in the GraphRAG retrieval step.
 
 **3. MCP for Graph Access**
-Neo4j is accessed via Google GenAI Toolbox (MCP pattern) rather than a direct driver. This decouples the graph interface from the agent code and makes the tool layer independently testable and replaceable.
+- Neo4j is accessed via Google GenAI Toolbox (MCP pattern) rather than a direct driver. This decouples the graph interface from the agent code and makes the tool layer independently testable and replaceable.
 
 **4. Langfuse for Full Observability**
-Every pipeline run is traced end-to-end: BKT output, LLM prompts/responses, graph context, and final feedback. This supports human expert evaluation and iterative prompt improvement.
+- Every pipeline run is traced end-to-end: BKT output, LLM prompts/responses, graph context, and final feedback. This supports human expert evaluation and iterative prompt improvement.
 
 ---
 
