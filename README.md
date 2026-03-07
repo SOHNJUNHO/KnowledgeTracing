@@ -1,8 +1,8 @@
 # Agentic GraphRAG Tutor
 
-> A production-grade AI tutoring system that combines a custom Neural Bayesian Knowledge Tracing model with an Agentic GraphRAG pipeline to deliver personalized, explainable study recommendations.
->
-> Based on the master's thesis: **TutorAgent: BKTransformer 기반 지식 추적과 Agentic GraphRAG를 통한 맞춤형 피드백 생성** — Junho Son, University of Seoul, 2026. [[RISS]](https://www.riss.kr/search/detail/DetailView.do?p_mat_type=be54d9b8bc7cdb09&control_no=8e965dc55df10271ffe0bdc3ef48d419)
+A production-grade AI tutoring system that combines a custom Neural Bayesian Knowledge Tracing model with an Agentic GraphRAG pipeline to deliver personalized, explainable study recommendations.
+
+Based on the master's thesis: **TutorAgent: BKTransformer 기반 지식 추적과 Agentic GraphRAG를 통한 맞춤형 피드백 생성** — Junho Son, University of Seoul, 2026. [[RISS]](https://www.riss.kr/search/detail/DetailView.do?p_mat_type=be54d9b8bc7cdb09&control_no=8e965dc55df10271ffe0bdc3ef48d419)
 
 ---
 
@@ -173,4 +173,4 @@ tutor_pipeline  [trace]
 ---
 
 ## Dataset
-- **AI-Hub** — 수학분야 학습자 역량 측정 데이터
+- **AI-Hub** — 수학분야 학습자 역량 측정 데이터, https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=data&dataSetSn=133
