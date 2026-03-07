@@ -21,9 +21,9 @@ Student Interaction History (skill_id, correct) × T timesteps
                         │
                         ▼
          ┌──────────────────────────┐
-         │   BKTransformer (PyTorch) │
-         │   RoPE · SwiGLU · Causal  │
-         │   Attention · 3 Layers    │
+         │   BKTransformer (PyTorch)│
+         │   RoPE · SwiGLU · Causal │
+         │   Attention · 3 Layers   │
          └──────────────────────────┘
                         │
           Per-skill BKT Parameters:
@@ -31,19 +31,19 @@ Student Interaction History (skill_id, correct) × T timesteps
                         │
                         ▼
          ┌──────────────────────────┐
-         │     Diagnosis Agent       │
-         │     GPT-4o-mini           │
-         │     Proficiency: 상/중/하  │
+         │     Diagnosis Agent      │
+         │     GPT-4o-mini          │
+         │     Proficiency: 상/중/하 │
          └──────────────────────────┘
                         │
               Proficiency Level
                         │
                         ▼
          ┌──────────────────────────┐
-         │   Recommendation Agent    │
-         │   Neo4j GraphRAG (MCP)    │
-         │   Predefined Cypher Query │
-         │   GPT-4o-mini             │
+         │   Recommendation Agent   │
+         │   Neo4j GraphRAG (MCP)   │
+         │   Predefined Cypher Query│
+         │   GPT-4o-mini            │
          └──────────────────────────┘
                         │
                         ▼
