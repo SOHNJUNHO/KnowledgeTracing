@@ -167,7 +167,7 @@ tutor_pipeline  [trace]
 ![Diagnosis Node Input](./assets/diagnose-input.png)
 
 **[Agent's diagnosis as Output]**
-![Diagnosis Node](./assets/diagnose.png)
+![Diagnosis Node](./assets/diagnose-output.png)
 
 
 **3. Agentic GraphRAG Personalized Feedback Generation**
