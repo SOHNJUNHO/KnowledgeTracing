@@ -38,7 +38,7 @@ Student Interaction History (skill_id, correct) × T timesteps
                         ▼
          ┌──────────────────────────┐
          │     Diagnosis Agent      │
-         │       GPT-4o-mini        │
+         │       (GPT-4o-mini)      │
          └──────────────────────────┘
                         │
               Proficiency Level (상 / 중 / 하)
@@ -46,9 +46,9 @@ Student Interaction History (skill_id, correct) × T timesteps
                         ▼
          ┌──────────────────────────┐
          │   Recommendation Agent   │
+         │       (GPT-4o-mini)      │
          │   Neo4j GraphRAG (MCP)   │
          │   Predefined Cypher Query│
-         │   GPT-4o-mini            │
          └──────────────────────────┘
                         │
                         ▼

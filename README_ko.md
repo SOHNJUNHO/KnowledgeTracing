@@ -29,7 +29,7 @@ LLM은 강력한 피드백 생성 도구이지만, 세 가지 근본적인 문�
                         │
                         ▼
          ┌──────────────────────────┐
-         │   BKTransformer (PyTorch)│
+         │  BKTransformer (PyTorch) │
          │       RoPE · SwiGLU      │
          └──────────────────────────┘
                         │
@@ -38,18 +38,18 @@ LLM은 강력한 피드백 생성 도구이지만, 세 가지 근본적인 문�
                         │
                         ▼
          ┌──────────────────────────┐
-         │       진단 에이전트         │
-         │       GPT-4o-mini        │
+         │     Diagnosis Agent      │
+         │       (GPT-4o-mini)      │
          └──────────────────────────┘
                         │
               Proficiency Level(상 / 중 / 하)
                         │
                         ▼
          ┌──────────────────────────┐
-         │       추천 에이전트         │
+         │   Recommendation Agent   │
+         │       (GPT-4o-mini)      │
          │   Neo4j GraphRAG (MCP)   │
-         │   사전 정의된 Cypher 쿼리    │
-         │   GPT-4o-mini            │
+         │   Predefined Cypher Query│
          └──────────────────────────┘
                         │
                         ▼
@@ -150,16 +150,20 @@ tutor_pipeline  [trace]
 ```
 
 **1. LangGraph 오케스트레이션 파이프라인**
+
 - 각 노드의 실행 시간, 통신 계층 구조 및 토큰 사용 비용
 ![파이프라인 트레이스](./assets/trace-tree.png)
 
+
 **2. BKT 파라미터 기반 숙련도 진단**
 - 단순 정오답이 아닌 BKT 파라미터 수치를 논리적 근거로 삼아 LLM이 숙련도(상/중/하)를 진단하는 과정
+
 **[Input: 추출된 BKT 파라미터]**
 ![진단 노드 입력](./assets/diagnose-input.png)
 
 **[Output: 진단 에이전트의 숙련도 진단 및 추론]**
 ![진단 노드 출력](./assets/diagnose-output.png)
+
 
 **3. Agentic GraphRAG 맞춤형 학습 피드백 생성**
 - 진단된 숙련도를 바탕으로 지식 그래프에서 연계 개념을 검색하고, 이를 바탕으로 최종 생성된 맞춤형 피드백
