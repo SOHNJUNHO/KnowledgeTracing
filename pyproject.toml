@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "knowledge-tracing"
+version = "0.1.0"
+description = "Static neural Bayesian Knowledge Tracing package and training scaffold."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy==2.4.2",
+  "pandas==3.0.1",
+  "python-dotenv==1.2.2",
+  "pytorch-lightning==2.6.1",
+  "torch==2.10.0",
+  "torchmetrics==1.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.0.2",
+]
+
+[tool.setuptools]
+package-dir = { "" = "." }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "platform_system == 'Darwin'" },
+  { index = "pytorch-cpu", marker = "platform_system == 'Windows'" },
+  { index = "pytorch-cu126", marker = "platform_system == 'Linux' and platform_machine == 'x86_64'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
