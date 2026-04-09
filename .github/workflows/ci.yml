@@ -21,7 +21,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: uv sync --extra dev --index pytorch-cu126=https://download.pytorch.org/whl/cpu
+        run: uv sync --extra dev --index pytorch-cu126=https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
 
       - name: Lint (ruff)
         run: uv run ruff check src/ tests/
