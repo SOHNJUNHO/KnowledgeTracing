@@ -1,123 +1,97 @@
-# Static Neural BKT
+# Knowledge Tracing
 
-This branch focuses only on the BKT package under `src/bkt`.
+A simple knowledge tracing training pipeline built with PyTorch Lightning.
 
-The model is a static neural-parameterized Bayesian Knowledge Tracing architecture:
+This repo is now scoped to the static neural BKT package only. The previous tutor-side agent and graph integration code has been removed from this branch.
 
-`skill_id -> embedding -> MLP -> BKT parameters -> Bayesian update -> correctness probability`
-
-It is intended as a simpler replacement for the previous Transformer-based parameter generator while preserving explicit BKT dynamics.
+## Project Layout
+```text
+knowledge-tracing/
+  artifacts/
+    checkpoints/
+    lightning_logs/
+  data/
+    raw/
+    processed/
+      assistment2009_processed.csv
+  scripts/
+    train_bkt.sh
+  src/
+    knowledge_tracing/
+      __init__.py
+      main.py
+      train.py
+      data/
+        __init__.py
+        datasets.py
+        validation.py
+      models/
+        static_neural_bkt.py
+  tests/
+    test_bkt_data.py
+    test_bkt_model.py
+```
 
 ## Model
 
-The model in [`src/bkt/model.py`](./src/bkt/model.py) uses:
+The model is a static neural-parameterized BKT variant:
 
+`skill_id -> embedding -> 3-layer MLP -> BKT params -> Bayesian update -> predicted correctness`
+
+It uses:
 - one embedding per skill
-- one 3-layer MLP parameter head
 - one static parameter set per skill
-- explicit BKT state updates over the student sequence
-
-Outputs:
-
-- `P(L0)` initial knowledge
-- `P(T)` learn
-- unused compatibility slot
-- `P(G)` guess
-- `P(S)` slip
-
-The training objective is:
-
-- binary cross-entropy on predicted correctness from the BKT equation
-- plus OptimNN-Reg-style soft constraints with defaults:
+- explicit BKT recursion
+- OptimNN-Reg-style soft penalties with defaults:
   - `lambda_consistency = 0.25`
   - `lambda_guess = 0.25`
   - `lambda_slip = 0.25`
 
 ## Data format
 
-Training data must be a CSV with:
-
+Input CSV must include:
 - `user_id`
 - `skill_id`
 - `correct`
 
-Preprocessing is implemented in [`src/bkt/data`](./src/bkt/data):
-
-- validate required columns
-- preserve within-user order
-- group rows by `user_id`
-- truncate to `block_size`
-- pad with `-1000`
-- create:
+The preprocessing pipeline:
+- validates required columns and binary correctness
+- groups by `user_id`
+- preserves within-user order
+- truncates sequences to `block_size`
+- pads with `-1000`
+- creates:
   - `obs = padded[:, :-1, :]`
   - `output = padded[:, 1:, :]`
 
-## Package layout
-
-```text
-src/bkt/
-  __init__.py
-  config.py
-  main.py
-  model.py
-  train.py
-  data/
-    __init__.py
-    datasets.py
-    validation.py
-
-scripts/
-  train_bkt.sh
-
-tests/
-  test_bkt_data.py
-  test_bkt_model.py
-```
-
-## Install
-
+## Setup
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync --extra dev
 ```
 
-## Train
-
-Shell entrypoint:
-
+If you want to run the shell helper directly:
 ```bash
-bash scripts/train_bkt.sh data/processed/your_dataset.csv
+bash scripts/train_bkt.sh data/processed/assistment2009_processed.csv
 ```
 
-Direct Python entrypoint:
-
+## Running Training
+From the repo root:
 ```bash
-python3 -m src.bkt.main \
-  --data_path data/processed/your_dataset.csv \
-  --batch_size 32 \
-  --max_epochs 50 \
-  --lr 1e-3 \
-  --n_embd 64 \
-  --hidden_dim 128 \
-  --lambda_consistency 0.25 \
-  --lambda_guess 0.25 \
-  --lambda_slip 0.25
+uv run python -m knowledge_tracing.main \
+  --data_path data/processed/assistment2009_processed.csv \
+  --max_epochs 50
 ```
 
-Training writes:
+Checkpoints and logs will be written to `artifacts/checkpoints` and `artifacts/lightning_logs`.
 
-- Lightning checkpoints to `artifacts/checkpoints/`
-- CSV logs to `artifacts/lightning_logs/`
-- exported model checkpoint to `artifacts/checkpoints/static-neural-bkt-best.pt`
-
-## Test
-
-```bash
-pytest tests
-```
+## Key Files
+- `src/knowledge_tracing/main.py`: CLI entrypoint.
+- `src/knowledge_tracing/train.py`: Lightning training loop.
+- `src/knowledge_tracing/data/datasets.py`: dataset loader and collate module.
+- `src/knowledge_tracing/data/validation.py`: dataframe validation.
+- `src/knowledge_tracing/models/static_neural_bkt.py`: model definition.
 
 ## Notes
-
-- This branch changes only the BKT package and its local training/testing scaffolding.
-- Tutor integration is intentionally out of scope for this branch.
+- This branch intentionally excludes the old tutor integration.
+- The old Transformer checkpoint has been removed from this branch.
+- `data/` is kept in the repo layout and is not ignored.

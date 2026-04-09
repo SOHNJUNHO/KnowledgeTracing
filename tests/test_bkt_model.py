@@ -1,7 +1,6 @@
 import torch
 
-from src.bkt.config import BKTConfig
-from src.bkt.model import BKTransformer
+from knowledge_tracing.models.static_neural_bkt import BKTConfig, BKTransformer
 
 
 def test_forward_pass_shapes_and_finite_loss():
@@ -9,15 +8,11 @@ def test_forward_pass_shapes_and_finite_loss():
     model = BKTransformer(config)
 
     batch_size, seq_len = 2, 5
-    obs = torch.zeros(batch_size, seq_len, 2)
-    obs[..., 0] = torch.randint(0, 5, (batch_size, seq_len)).float()
-    obs[..., 1] = torch.randint(0, 2, (batch_size, seq_len)).float()
-
     output = torch.zeros(batch_size, seq_len, 2)
-    output[..., 0] = torch.randint(0, 5, (batch_size, seq_len)).float()
+    output[..., 0] = torch.randint(1, 6, (batch_size, seq_len)).float()
     output[..., 1] = torch.randint(0, 2, (batch_size, seq_len)).float()
 
-    corrects, latents, params, loss = model(obs, output)
+    corrects, latents, params, loss = model(output)
 
     assert corrects.shape == (batch_size, seq_len, 1)
     assert len(latents) == seq_len

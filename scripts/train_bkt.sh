@@ -9,7 +9,7 @@ fi
 DATA_PATH="$1"
 shift
 
-python3 -m src.bkt.main \
+uv run python -m knowledge_tracing.main \
   --data_path "$DATA_PATH" \
   --batch_size 32 \
   --max_epochs 50 \

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.bkt.data.datasets import create_sequences, get_data_loaders
+from knowledge_tracing.data.datasets import create_sequences, get_data_loaders
 
 
 def test_create_sequences_preserves_user_order():
@@ -23,7 +23,7 @@ def test_get_data_loaders_smoke_case():
     df = pd.DataFrame(
         {
             "user_id": [1, 1, 2, 2, 3, 3],
-            "skill_id": [0, 1, 1, 2, 2, 3],
+            "skill_id": [1, 2, 2, 3, 3, 4],
             "correct": [0, 1, 1, 0, 1, 0],
         }
     )
@@ -38,10 +38,9 @@ def test_get_data_loaders_smoke_case():
         seed=7,
     )
 
-    obs, output, keys = next(iter(train_loader))
+    output, keys = next(iter(train_loader))
     assert len(train_loader.dataset) == 1
     assert len(val_loader.dataset) == 0
     assert len(test_loader.dataset) == 2
-    assert obs.shape[-1] == 2
     assert output.shape[-1] == 2
     assert len(keys) == 1
