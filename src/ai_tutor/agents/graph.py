@@ -1,40 +1,73 @@
 """
-LangGraph state machine for the Agentic GraphRAG Tutor.
+LlamaIndex Workflow for the Agentic GraphRAG Tutor.
 
-Graph flow:
-  START → run_bkt → diagnose → recommend → END
+Workflow flow:
+  StartEvent → run_bkt  → BKTDoneEvent
+             → diagnose → DiagnosisDoneEvent
+             → recommend → StopEvent
 
   run_bkt   : BKTransformer inference → per-skill BKT parameters
   diagnose  : LLM assigns proficiency level + reasoning per skill
   recommend : Neo4j GraphRAG (via MCP Toolbox) + LLM generates study feedback
-              (async node — all skills are processed concurrently)
+              (async step — all skills are processed concurrently)
 """
 
-from typing import Any, cast
-from langgraph.graph import StateGraph, START, END
+from llama_index.core.workflow import Workflow, StartEvent, StopEvent, step
 from langfuse.decorators import observe, langfuse_context
 
-from ai_tutor.agents.state import AgentState
+from ai_tutor.agents.state import AgentState, BKTDoneEvent, DiagnosisDoneEvent
 from ai_tutor.agents.diagnosis_node import run_bkt_node, diagnose_node
 from ai_tutor.agents.recommendation_node import recommend_node
 
 
-def build_graph():
-    graph = StateGraph(AgentState)
+class TutorWorkflow(Workflow):
 
-    graph.add_node("run_bkt",   run_bkt_node)
-    graph.add_node("diagnose",  diagnose_node)
-    graph.add_node("recommend", recommend_node)
+    @step
+    async def run_bkt(self, ev: StartEvent) -> BKTDoneEvent:
+        """Call BKT inference service and build per-timestep records."""
+        # Note: run_bkt_node is sync — acceptable for an experiment branch.
+        # In production, wrap with asyncio.to_thread() to avoid blocking.
+        state: AgentState = {
+            "student_id":     ev.get("student_id"),
+            "obs":            ev.get("obs"),
+            "output":         ev.get("output"),
+            "skill_id_to_name": ev.get("skill_id_to_name"),
+            "diagnosis": {},
+            "analysis":  [],
+            "feedback":  [],
+        }
+        result = run_bkt_node(state)
+        return BKTDoneEvent(
+            student_id=state["student_id"],
+            obs=state["obs"],
+            output=state["output"],
+            skill_id_to_name=state["skill_id_to_name"],
+            diagnosis=result["diagnosis"],
+        )
 
-    graph.add_edge(START,       "run_bkt")
-    graph.add_edge("run_bkt",   "diagnose")
-    graph.add_edge("diagnose",  "recommend")
-    graph.add_edge("recommend", END)
+    @step
+    async def diagnose(self, ev: BKTDoneEvent) -> DiagnosisDoneEvent:
+        """Aggregate BKT data and call LLM for proficiency diagnosis."""
+        state: AgentState = {
+            "student_id":     ev.student_id,
+            "obs":            ev.obs,
+            "output":         ev.output,
+            "skill_id_to_name": ev.skill_id_to_name,
+            "diagnosis":      ev.diagnosis,
+            "analysis":  [],
+            "feedback":  [],
+        }
+        result = diagnose_node(state)
+        return DiagnosisDoneEvent(
+            student_id=ev.student_id,
+            analysis=result["analysis"],
+        )
 
-    return graph.compile()
-
-
-tutor_graph = build_graph()
+    @step
+    async def recommend(self, ev: DiagnosisDoneEvent) -> StopEvent:
+        """Fetch graph context and generate per-skill feedback concurrently."""
+        result = await recommend_node({"analysis": ev.analysis})  # type: ignore[arg-type]
+        return StopEvent(result=result["feedback"])
 
 
 @observe(name="tutor_pipeline")
@@ -45,4 +78,11 @@ async def run_tutor(state: AgentState) -> dict:
         session_id=state["student_id"],
         tags=["production"],
     )
-    return cast(dict[Any, Any], await tutor_graph.ainvoke(state))
+    workflow = TutorWorkflow(timeout=120, verbose=False)
+    feedback = await workflow.run(
+        student_id=state["student_id"],
+        obs=state["obs"],
+        output=state["output"],
+        skill_id_to_name=state["skill_id_to_name"],
+    )
+    return {"feedback": feedback}
