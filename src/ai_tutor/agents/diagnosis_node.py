@@ -181,7 +181,7 @@ def _call_diagnose_llm(client: OpenAI, messages: list) -> str:
         response_format={"type": "json_object"},
         temperature=0.2,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 
 @observe(name="diagnose")

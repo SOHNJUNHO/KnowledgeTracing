@@ -10,6 +10,7 @@ Graph flow:
               (async node — all skills are processed concurrently)
 """
 
+from typing import Any, cast
 from langgraph.graph import StateGraph, START, END
 from langfuse.decorators import observe, langfuse_context
 
@@ -44,4 +45,4 @@ async def run_tutor(state: AgentState) -> dict:
         session_id=state["student_id"],
         tags=["production"],
     )
-    return await tutor_graph.ainvoke(state)
+    return cast(dict[Any, Any], await tutor_graph.ainvoke(state))

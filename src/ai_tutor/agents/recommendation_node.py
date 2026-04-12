@@ -15,6 +15,7 @@ Prompt text lives in the Langfuse Prompt Registry ("feedback_prompt", label
 
 import asyncio
 import json
+from typing import Any, cast
 
 from langfuse import Langfuse
 from langfuse.openai import AsyncOpenAI
@@ -97,7 +98,7 @@ async def _call_recommend_llm(client: AsyncOpenAI, messages: list) -> str:
         response_format={"type": "json_object"},
         temperature=0.3,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +169,7 @@ async def _process_skill(client: AsyncOpenAI, kc_data: dict) -> dict | None:
             input_data=json.dumps(kc_data, ensure_ascii=False),
             graph_context=json.dumps(graph_context, ensure_ascii=False) if graph_context else "",
         )
-        return record.model_dump()
+        return cast(dict[Any, Any], record.model_dump())
     except ValidationError:
         return None
 
