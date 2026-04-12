@@ -46,8 +46,8 @@ async def _load_neo4j_tools() -> dict:
     async with _get_lock():
         if _tool_map_cache is None:
             client = ToolboxClient(TOOLBOX_URL, protocol=Protocol.MCP_v20251125)
-            tools = await client.aload_toolset("neo4j-tools")
-            _tool_map_cache = {t.name: t for t in tools}
+            tools = await client.load_toolset("neo4j-tools")
+            _tool_map_cache = {t._name: t for t in tools}
     assert _tool_map_cache is not None
     return _tool_map_cache
 
