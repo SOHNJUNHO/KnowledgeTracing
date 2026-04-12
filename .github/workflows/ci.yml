@@ -15,6 +15,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install PyTorch (CPU-only for CI)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Install package with dev dependencies
         run: pip install -e ".[dev]"
 
