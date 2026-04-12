@@ -13,7 +13,16 @@ Workflow flow:
 """
 
 from llama_index.core.workflow import Workflow, StartEvent, StopEvent, step
+from llama_index.core import Settings
+from llama_index.core.callbacks import CallbackManager
+from langfuse.llama_index import LlamaIndexCallbackHandler
 from langfuse.decorators import observe, langfuse_context
+
+# Native Langfuse integration: automatically traces all LlamaIndex operations
+# (step execution, event routing) without requiring manual @observe per step.
+# The @observe decorators on node functions still add named child spans on top.
+_langfuse_handler = LlamaIndexCallbackHandler()
+Settings.callback_manager = CallbackManager([_langfuse_handler])
 
 from ai_tutor.agents.state import AgentState, BKTDoneEvent, DiagnosisDoneEvent
 from ai_tutor.agents.diagnosis_node import run_bkt_node, diagnose_node

@@ -1,6 +1,24 @@
 services:
+
+  # --------------------------------------------------------------------------
+  # Neo4j — curriculum knowledge graph database
+  # --------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5
+    ports:
+      - "7474:7474"   # browser UI
+      - "7687:7687"   # Bolt protocol
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - tutor-net
+
+  # --------------------------------------------------------------------------
+  # Google GenAI Toolbox — exposes Neo4j Cypher queries as MCP tools
+  # --------------------------------------------------------------------------
   toolbox:
-    # Verify the latest tag at: https://github.com/googleapis/genai-toolbox/releases
     image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest
     ports:
       - "5001:5001"
@@ -9,3 +27,45 @@ services:
     command: ["--tools-file", "/tools.yaml", "--address", "0.0.0.0", "--port", "5001"]
     env_file:
       - .env
+    depends_on:
+      - neo4j
+    networks:
+      - tutor-net
+
+  # --------------------------------------------------------------------------
+  # BKT inference service — serves the BKTransformer model over HTTP
+  # Run on a GPU host in production; CPU-only here for local development
+  # --------------------------------------------------------------------------
+  bkt-service:
+    build:
+      context: .
+      dockerfile: services/Dockerfile.bkt
+    ports:
+      - "8001:8001"
+    networks:
+      - tutor-net
+
+  # --------------------------------------------------------------------------
+  # Main tutor app
+  # --------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      BKT_SERVICE_URL: http://bkt-service:8001
+      TOOLBOX_URL: http://toolbox:5001
+    depends_on:
+      - bkt-service
+      - toolbox
+    networks:
+      - tutor-net
+
+networks:
+  tutor-net:
+    driver: bridge
+
+volumes:
+  neo4j_data:

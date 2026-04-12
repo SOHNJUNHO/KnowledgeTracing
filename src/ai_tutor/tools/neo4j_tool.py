@@ -1,11 +1,14 @@
 """
-Neo4j tools via Google GenAI Toolbox (MCP pattern).
+Neo4j tools via Google GenAI Toolbox (async, framework-agnostic).
+
+Uses toolbox-core directly — the LlamaIndex-native choice.
+toolbox-core is async-first and has no framework coupling, unlike the
+toolbox-langchain adapter (used in the main branch) which wraps tools
+as sync LangChain BaseTool objects and requires asyncio.to_thread.
 
 Prerequisites:
-  1. Install the toolbox server: https://github.com/googleapis/genai-toolbox
-  2. Configure tools.yaml at the project root with your Neo4j credentials.
-  3. Start the server: toolbox --tools-file tools.yaml
-  4. Set TOOLBOX_URL env var (default: http://localhost:5001)
+  1. Start the toolbox server: docker compose up toolbox
+  2. Set TOOLBOX_URL env var (default: http://toolbox:5001)
 
 The three tools correspond to the proficiency-gated Cypher queries in tools.yaml:
   - get_prerequisites     : LOW proficiency (하)
@@ -13,34 +16,45 @@ The three tools correspond to the proficiency-gated Cypher queries in tools.yaml
   - get_advanced_concepts : HIGH proficiency (상)
 """
 
+import asyncio
 import os
-from toolbox_langchain import ToolboxClient
+
+from toolbox_core import ToolboxClient
 from toolbox_core.protocol import Protocol
 
-TOOLBOX_URL = os.getenv("TOOLBOX_URL", "http://localhost:5001")
+TOOLBOX_URL = os.getenv("TOOLBOX_URL", "http://toolbox:5001")
 
-_tools_cache: list | None = None
 _tool_map_cache: dict | None = None
+_cache_lock: asyncio.Lock | None = None
 
 
-def _load_neo4j_tools() -> tuple[list, dict]:
-    """Load and cache Neo4j Cypher tools from the running GenAI Toolbox server.
+def _get_lock() -> asyncio.Lock:
+    """Lazy-init the lock so it is created inside a running event loop."""
+    global _cache_lock
+    if _cache_lock is None:
+        _cache_lock = asyncio.Lock()
+    return _cache_lock
 
-    Both the list and the name→tool dict are cached so the server is
-    contacted only once per process and get_tool() pays no rebuild cost.
+
+async def _load_neo4j_tools() -> dict:
+    """Load and cache async-callable Neo4j tools from the Toolbox server.
+
+    Protected by an asyncio.Lock so concurrent coroutines don't trigger
+    multiple round-trips to the Toolbox server on cold start.
     """
-    global _tools_cache, _tool_map_cache
-    if _tools_cache is None:
-        client = ToolboxClient(TOOLBOX_URL, protocol=Protocol.MCP_v20251125)
-        _tools_cache = client.load_toolset("neo4j-tools")
-        _tool_map_cache = {t.name: t for t in _tools_cache}
-    assert _tools_cache is not None and _tool_map_cache is not None
-    return _tools_cache, _tool_map_cache
+    global _tool_map_cache
+    async with _get_lock():
+        if _tool_map_cache is None:
+            client = ToolboxClient(TOOLBOX_URL, protocol=Protocol.MCP_v20251125)
+            tools = await client.aload_toolset("neo4j-tools")
+            _tool_map_cache = {t.name: t for t in tools}
+    assert _tool_map_cache is not None
+    return _tool_map_cache
 
 
-def get_tool(name: str):
-    """Retrieve a single tool by name from the cached toolset."""
-    _, tool_map = _load_neo4j_tools()
+async def get_tool(name: str):
+    """Retrieve a single async-callable tool by name from the cached toolset."""
+    tool_map = await _load_neo4j_tools()
     if name not in tool_map:
         raise KeyError(f"Tool '{name}' not found. Available: {list(tool_map.keys())}")
     return tool_map[name]
