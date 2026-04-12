@@ -1,0 +1,11 @@
+services:
+  toolbox:
+    # Verify the latest tag at: https://github.com/googleapis/genai-toolbox/releases
+    image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./tools.yaml:/tools.yaml
+    command: ["--tools-file", "/tools.yaml", "--address", "0.0.0.0", "--port", "5001"]
+    env_file:
+      - .env
