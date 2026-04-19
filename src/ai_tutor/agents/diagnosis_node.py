@@ -27,11 +27,10 @@ hosted model is shared across many API workers rather than replicated.
 import json
 import os
 from collections import defaultdict
-from pathlib import Path
 
 import httpx
 from langfuse import Langfuse
-from langfuse.openai import OpenAI
+from langfuse.openai import AsyncOpenAI
 from langfuse.decorators import observe, langfuse_context
 from openai import RateLimitError, APIConnectionError, APITimeoutError
 from pydantic import ValidationError
@@ -60,7 +59,7 @@ def _get_langfuse() -> Langfuse:
 # ---------------------------------------------------------------------------
 
 @observe(name="run_bkt")
-def run_bkt_node(state: AgentState) -> dict:
+async def run_bkt_node(state: AgentState) -> dict:
     """Run BKTransformer inference on a single student's sequence.
 
     Sends the observation and output tensors to the separate inference
@@ -71,14 +70,13 @@ def run_bkt_node(state: AgentState) -> dict:
     """
     skill_id_to_name: dict = state["skill_id_to_name"]
 
-    # Serialize tensors to JSON-friendly format for the HTTP call
     payload = {
         "obs": state["obs"].tolist(),
         "output": state["output"].tolist(),
     }
 
-    with httpx.Client(timeout=60.0) as client:
-        resp = client.post(f"{_BKT_SERVICE_URL}/infer", json=payload)
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(f"{_BKT_SERVICE_URL}/infer", json=payload)
         resp.raise_for_status()
         result = resp.json()
 
@@ -174,8 +172,8 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-def _call_diagnose_llm(client: OpenAI, messages: list) -> str:
-    response = client.chat.completions.create(
+async def _call_diagnose_llm(client: AsyncOpenAI, messages: list) -> str:
+    response = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         response_format={"type": "json_object"},
@@ -185,7 +183,7 @@ def _call_diagnose_llm(client: OpenAI, messages: list) -> str:
 
 
 @observe(name="diagnose")
-def diagnose_node(state: AgentState) -> dict:
+async def diagnose_node(state: AgentState) -> dict:
     """Call the LLM to assign proficiency levels from BKT summaries.
 
     Reads:   state['student_id'], state['diagnosis']
@@ -195,20 +193,19 @@ def diagnose_node(state: AgentState) -> dict:
     aggregated = _aggregate_bkt_by_skill(state["diagnosis"])
     template = _build_output_template(student_id, state["diagnosis"])
 
-    # Fetch the versioned prompt from Langfuse — automatically linked to this trace span
     prompt_obj = _get_langfuse().get_prompt("diagnosis_prompt", label="production")
     prompt = prompt_obj.compile(
         aggregated_json=json.dumps({student_id: aggregated}, indent=2, ensure_ascii=False),
         template_json=json.dumps(template, indent=2, ensure_ascii=False),
     )
 
-    client = OpenAI()
+    client = AsyncOpenAI()
     messages = [
         {"role": "system", "content": "당신은 JSON 형식으로 정확하게 응답하는 학습 데이터 분석 전문가입니다."},
         {"role": "user",   "content": prompt},
     ]
 
-    raw = json.loads(_call_diagnose_llm(client, messages))
+    raw = json.loads(await _call_diagnose_llm(client, messages))
     raw_list = raw.get(student_id, [])
 
     validated: list[dict] = []

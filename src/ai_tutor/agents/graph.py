@@ -8,7 +8,7 @@ Workflow flow:
 
   run_bkt   : BKTransformer inference → per-skill BKT parameters
   diagnose  : LLM assigns proficiency level + reasoning per skill
-  recommend : Neo4j GraphRAG (via MCP Toolbox) + LLM generates study feedback
+  recommend : Neo4j GraphRAG + LLM generates study feedback
               (async step — all skills are processed concurrently)
 """
 
@@ -34,8 +34,6 @@ class TutorWorkflow(Workflow):
     @step
     async def run_bkt(self, ev: StartEvent) -> BKTDoneEvent:
         """Call BKT inference service and build per-timestep records."""
-        # Note: run_bkt_node is sync — acceptable for an experiment branch.
-        # In production, wrap with asyncio.to_thread() to avoid blocking.
         state: AgentState = {
             "student_id":     ev.get("student_id"),
             "obs":            ev.get("obs"),
@@ -45,7 +43,7 @@ class TutorWorkflow(Workflow):
             "analysis":  [],
             "feedback":  [],
         }
-        result = run_bkt_node(state)
+        result = await run_bkt_node(state)
         return BKTDoneEvent(
             student_id=state["student_id"],
             obs=state["obs"],
@@ -66,7 +64,7 @@ class TutorWorkflow(Workflow):
             "analysis":  [],
             "feedback":  [],
         }
-        result = diagnose_node(state)
+        result = await diagnose_node(state)
         return DiagnosisDoneEvent(
             student_id=ev.student_id,
             analysis=result["analysis"],

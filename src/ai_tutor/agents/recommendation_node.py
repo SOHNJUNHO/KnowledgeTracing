@@ -114,7 +114,7 @@ async def _process_skill(client: AsyncOpenAI, kc_data: dict) -> dict | None:
     cache_key = (tool_name, skill_id)
 
     if cache_key not in _graph_cache:
-        tool = await get_tool(tool_name)
+        tool = get_tool(tool_name)
         raw = await tool(skill_id=skill_id)
         if isinstance(raw, str):
             try:

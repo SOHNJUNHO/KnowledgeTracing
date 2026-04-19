@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 
 [project.scripts]
 ai-tutor = "ai_tutor.main:cli"
+ai-tutor-api = "ai_tutor.api:serve"
 
 [project.optional-dependencies]
 dev = [
