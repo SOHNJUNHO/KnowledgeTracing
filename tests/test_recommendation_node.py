@@ -126,7 +126,7 @@ async def test_recommend_node_returns_feedback_for_all_skills(mocker):
     _mock_langfuse_prompt(mocker)
 
     mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
-    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", new_callable=AsyncMock, return_value=mock_tool)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
 
     llm_payload = json.dumps({"reasoning": "분석 요약", "feedback": "학습 추천 내용"})
     mock_response = MagicMock()
@@ -146,7 +146,7 @@ async def test_recommend_node_calls_llm_once_per_skill(mocker):
     _mock_langfuse_prompt(mocker)
 
     mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
-    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", new_callable=AsyncMock, return_value=mock_tool)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
 
     llm_payload = json.dumps({"reasoning": "r", "feedback": "f"})
     mock_response = MagicMock()
@@ -168,7 +168,7 @@ async def test_recommend_node_skips_invalid_llm_output(mocker):
     _mock_langfuse_prompt(mocker)
 
     mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
-    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", new_callable=AsyncMock, return_value=mock_tool)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
 
     # Empty feedback string fails FeedbackRecord validation (min_length=1)
     bad_payload = json.dumps({"reasoning": "r", "feedback": ""})
