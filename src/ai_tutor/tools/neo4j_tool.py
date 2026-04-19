@@ -1,47 +1,113 @@
 """
-Neo4j tools via Google GenAI Toolbox (MCP pattern).
+Neo4j tools via direct driver connection.
 
-Prerequisites:
-  1. Install the toolbox server: https://github.com/googleapis/genai-toolbox
-  2. Configure tools.yaml at the project root with your Neo4j credentials.
-  3. Start the server: toolbox --tools-file tools.yaml
-  4. Set TOOLBOX_URL env var (default: http://localhost:5001)
+Cypher queries mirror tools.yaml exactly — that file remains as a human-readable
+reference but is no longer executed at runtime.
 
-The three tools correspond to the proficiency-gated Cypher queries in tools.yaml:
-  - get_prerequisites     : LOW proficiency (하)
-  - get_current_concept   : MEDIUM proficiency (중)
-  - get_advanced_concepts : HIGH proficiency (상)
+Environment variables required:
+    NEO4J_URI       — e.g. neo4j+s://xxxx.databases.neo4j.io
+    NEO4J_USERNAME  — e.g. neo4j
+    NEO4J_PASSWORD  — your Aura password
 """
 
 import os
+from typing import Any
 
-from toolbox_core.protocol import Protocol
-from toolbox_langchain import ToolboxClient
+from neo4j import GraphDatabase, Driver
 
-TOOLBOX_URL = os.getenv("TOOLBOX_URL", "http://localhost:5001")
-
-_tools_cache: list | None = None
-_tool_map_cache: dict | None = None
+_driver: Driver | None = None
 
 
-def _load_neo4j_tools() -> tuple[list, dict]:
-    """Load and cache Neo4j Cypher tools from the running GenAI Toolbox server.
-
-    Both the list and the name→tool dict are cached so the server is
-    contacted only once per process and get_tool() pays no rebuild cost.
-    """
-    global _tools_cache, _tool_map_cache
-    if _tools_cache is None:
-        client = ToolboxClient(TOOLBOX_URL, protocol=Protocol.MCP_v20250326)
-        _tools_cache = client.load_toolset("neo4j-tools")
-        _tool_map_cache = {t.name: t for t in _tools_cache}
-    assert _tools_cache is not None and _tool_map_cache is not None
-    return _tools_cache, _tool_map_cache
+def _get_driver() -> Driver:
+    global _driver
+    if _driver is None:
+        _driver = GraphDatabase.driver(
+            os.environ["NEO4J_URI"],
+            auth=(os.environ["NEO4J_USERNAME"], os.environ["NEO4J_PASSWORD"]),
+        )
+    return _driver
 
 
-def get_tool(name: str):
-    """Retrieve a single tool by name from the cached toolset."""
-    _, tool_map = _load_neo4j_tools()
-    if name not in tool_map:
-        raise KeyError(f"Tool '{name}' not found. Available: {list(tool_map.keys())}")
-    return tool_map[name]
+def _run_query(query: str, params: dict) -> list[dict]:
+    with _get_driver().session() as session:
+        result = session.run(query, params)
+        return [dict(record) for record in result]
+
+
+# ---------------------------------------------------------------------------
+# Cypher queries (mirrored from tools.yaml)
+# ---------------------------------------------------------------------------
+
+_GET_PREREQUISITES = """
+MATCH (current:KnowledgeComponent {skill_id: $skill_id})
+OPTIONAL MATCH (current)-[:REQUIRE]->(prereq:KnowledgeComponent)
+RETURN
+  current.skill_id    AS skill_id,
+  current.name        AS name,
+  current.semester    AS semester,
+  current.description AS description,
+  collect({
+    skill_id:    prereq.skill_id,
+    name:        prereq.name,
+    semester:    prereq.semester,
+    description: prereq.description
+  }) AS next_skills
+"""
+
+_GET_CURRENT_CONCEPT = """
+MATCH (current:KnowledgeComponent {skill_id: $skill_id})
+RETURN
+  current.skill_id    AS skill_id,
+  current.name        AS name,
+  current.semester    AS semester,
+  current.description AS description
+"""
+
+_GET_ADVANCED_CONCEPTS = """
+MATCH (current:KnowledgeComponent {skill_id: $skill_id})
+OPTIONAL MATCH (advanced:KnowledgeComponent)-[:REQUIRE]->(current)
+RETURN
+  current.skill_id    AS skill_id,
+  current.name        AS name,
+  current.semester    AS semester,
+  current.description AS description,
+  collect({
+    skill_id:    advanced.skill_id,
+    name:        advanced.name,
+    semester:    advanced.semester,
+    description: advanced.description
+  }) AS next_skills
+"""
+
+_QUERIES: dict[str, str] = {
+    "get_prerequisites":    _GET_PREREQUISITES,
+    "get_current_concept":  _GET_CURRENT_CONCEPT,
+    "get_advanced_concepts": _GET_ADVANCED_CONCEPTS,
+}
+
+
+# ---------------------------------------------------------------------------
+# Public interface — same signature as before so callers are unchanged
+# ---------------------------------------------------------------------------
+
+class _Tool:
+    """Minimal wrapper so recommendation_node.py can call tool.invoke(...)."""
+
+    def __init__(self, name: str, query: str) -> None:
+        self.name = name
+        self._query = query
+
+    def invoke(self, params: dict[str, Any]) -> list[dict]:
+        return _run_query(self._query, params)
+
+
+_tool_cache: dict[str, _Tool] = {}
+
+
+def get_tool(name: str) -> _Tool:
+    """Retrieve a Neo4j tool by name."""
+    if name not in _QUERIES:
+        raise KeyError(f"Tool '{name}' not found. Available: {list(_QUERIES.keys())}")
+    if name not in _tool_cache:
+        _tool_cache[name] = _Tool(name, _QUERIES[name])
+    return _tool_cache[name]
