@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies first (cached layer)
+COPY requirements-tutor.txt .
+RUN pip install --no-cache-dir -r requirements-tutor.txt
+
+# Install the ai_tutor package
+COPY src/ src/
+RUN pip install --no-cache-dir -e src/
+
+# Copy student data
+COPY data/ data/
+
+# Run the tutor pipeline
+CMD ["ai-tutor"]

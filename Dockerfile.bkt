@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies first (cached layer — only rebuilds when requirements change)
+COPY requirements-bkt.txt .
+RUN pip install --no-cache-dir -r requirements-bkt.txt
+
+# Install the ai_tutor package (bkt-service imports ai_tutor.bkt.*)
+COPY src/ src/
+RUN pip install --no-cache-dir -e src/
+
+# Startup script: downloads checkpoint from GCS, then starts the server
+COPY scripts/download_checkpoint.sh .
+RUN chmod +x download_checkpoint.sh
+
+# Cloud Run injects $PORT at runtime (default 8080)
+ENV BKT_CHECKPOINT=/app/model.pt
+CMD ["sh", "-c", "./download_checkpoint.sh && uvicorn bkt_service.app:app --host 0.0.0.0 --port ${PORT:-8080}"]
