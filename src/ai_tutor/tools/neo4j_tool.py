@@ -13,7 +13,7 @@ Environment variables required:
 import os
 from typing import Any
 
-from neo4j import GraphDatabase, Driver
+from neo4j import Driver, GraphDatabase
 
 _driver: Driver | None = None
 
