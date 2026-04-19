@@ -31,9 +31,9 @@ DIAGNOSIS_PROMPT = """\
 ## 입력 데이터
 아래 JSON은 각 학생의 지식 구성요소(KC)별 BKT 파라미터 요약입니다.
 각 항목에는 accuracy_rate와 시간 순서로 정렬된 네 가지 시계열이 포함됩니다:
-- priors  : 각 timestep의 P(knowledge) — 지식 상태 시계열
-- learning_rates : 각 timestep의 P(learn) — 학습 속도 시계열
-- guesses : 각 timestep의 P(guess)    — 추측 확률 시계열
+- priors  : 각 timestep의 P(knowledge) — 이미 알고 있을 확률 시계열
+- learning_rates : 각 timestep의 P(learn) — 학습했을 확률 시계열
+- guesses : 각 timestep의 P(guess)    — 찍었는데 정답일 확률 시계열
 - slips   : 각 timestep의 P(slip)     — 실수 확률 시계열
 
 {{aggregated_json}}
@@ -107,7 +107,7 @@ def main() -> None:
         name="diagnosis_prompt",
         prompt=DIAGNOSIS_PROMPT,
         labels=["production"],
-        config={"model": "gpt-4o-mini", "temperature": 0.2},
+        config={"model": "gpt-4o", "temperature": 0.2},
     )
     print("Created: diagnosis_prompt [production]")
 
@@ -115,7 +115,7 @@ def main() -> None:
         name="feedback_prompt",
         prompt=FEEDBACK_PROMPT,
         labels=["production"],
-        config={"model": "gpt-4o-mini", "temperature": 0.3},
+        config={"model": "gpt-4o", "temperature": 0.3},
     )
     print("Created: feedback_prompt [production]")
 

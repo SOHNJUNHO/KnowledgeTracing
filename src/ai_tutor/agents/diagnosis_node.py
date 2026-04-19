@@ -82,6 +82,10 @@ def run_bkt_node(state: AgentState) -> dict:
         resp.raise_for_status()
         result = resp.json()
 
+    #corrects = [[p0, p1, p2, p3, ...]]        # shape: (1, T)        — predicted correct probability per timestep
+    #latents  = [[skill0, skill1, ...], ...]    # shape: (T, n_skills) — knowledge level per skill, per timestep 
+    #params   = [[[lr, ?, g, s], ...], ...]     # shape: (T, n_skills, 4) — BKT params per skill, per timestep
+
     corrects = result["corrects"]      # [[...]]
     latents = result["latents"]        # [[...]] — per timestep, per skill
     params = result["params"]          # [[...]] — per timestep, per skill, 4 values
@@ -112,6 +116,30 @@ def run_bkt_node(state: AgentState) -> dict:
     )
     return {"diagnosis": diagnosis}
 
+
+## example of diagnosis:
+# {
+#     "timestep0": {
+#         "skill_id": 1,
+#         "skill_name": "덧셈",
+#         "actual_correct": 1,
+#         "prior": 0.72,
+#         "learning_rate": 0.1,
+#         "guess": 0.2,
+#         "slip": 0.05,
+#         "predicted_correct": 0.81,
+#     },
+#     "timestep1": {
+#         "skill_id": 1,
+#         "skill_name": "덧셈",
+#         "actual_correct": 0,
+#         "prior": 0.55,
+#         "learning_rate": 0.1,
+#         "guess": 0.2,
+#         "slip": 0.05,
+#         "predicted_correct": 0.61,
+#     },..
+# }
 
 # ---------------------------------------------------------------------------
 # BKT aggregation — condenses timestep rows into compact per-skill summaries
@@ -147,6 +175,28 @@ def _aggregate_bkt_by_skill(diagnosis: dict) -> dict[int, dict]:
 
     return aggregated
 
+## example of aggregated {
+#     1: {
+#         "skill_name": "덧셈",
+#         "n_observations": 2,
+#         "accuracy_rate": 0.5,
+#         "priors": [0.72, 0.55],
+#         "learning_rates": [0.1, 0.1],
+#         "guesses": [0.2, 0.2],
+#         "slips": [0.05, 0.05],
+#     },
+
+#     2: {
+#         "skill_name": "뺄셈",
+#         "n_observations": 1,
+#         "accuracy_rate": 1.0,
+#         "priors": [0.91],
+#         "learning_rates": [0.08],
+#         "guesses": [0.15],
+#         "slips": [0.03],
+#     },
+# }
+
 
 def _build_output_template(student_id: str, diagnosis: dict) -> dict:
     template: list = []
@@ -176,7 +226,7 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
 )
 def _call_diagnose_llm(client: OpenAI, messages: list) -> str:
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.2,
