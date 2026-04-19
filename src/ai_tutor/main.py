@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import torch
+from langfuse import Langfuse
 from ai_tutor.agents.graph import run_tutor
 
 
@@ -58,3 +59,4 @@ async def main() -> None:
 
 def cli() -> None:
     asyncio.run(main())
+    Langfuse().flush()  # block until all traces are uploaded before the process exits
