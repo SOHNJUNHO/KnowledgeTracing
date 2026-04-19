@@ -123,7 +123,10 @@ async def _process_skill(client: AsyncOpenAI, kc_data: dict) -> dict | None:
                 parsed = None
         else:
             parsed = raw
-        _graph_cache[cache_key] = parsed[0] if isinstance(parsed, list) and parsed else parsed
+        if isinstance(parsed, list):
+            _graph_cache[cache_key] = parsed[0] if parsed else None
+        else:
+            _graph_cache[cache_key] = parsed  # dict | None
 
     graph_context = _graph_cache[cache_key]
 

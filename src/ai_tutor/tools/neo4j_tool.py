@@ -32,7 +32,8 @@ async def _run_query(query: str, params: dict) -> list[dict]:
     driver = await _get_driver()
     async with driver.session() as session:
         result = await session.run(query, params)
-        return await result.data()
+        records: list[dict] = await result.data()
+        return records
 
 
 # ---------------------------------------------------------------------------
