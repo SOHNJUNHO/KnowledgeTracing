@@ -32,7 +32,7 @@ def _load_neo4j_tools() -> tuple[list, dict]:
     """
     global _tools_cache, _tool_map_cache
     if _tools_cache is None:
-        client = ToolboxClient(TOOLBOX_URL, protocol=Protocol.MCP_v20251125)
+        client = ToolboxClient(TOOLBOX_URL, protocol=Protocol.MCP_v20250326)
         _tools_cache = client.load_toolset("neo4j-tools")
         _tool_map_cache = {t.name: t for t in _tools_cache}
     assert _tools_cache is not None and _tool_map_cache is not None

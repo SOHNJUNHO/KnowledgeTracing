@@ -224,7 +224,7 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
 )
 async def _call_diagnose_llm(client: AsyncOpenAI, messages: list) -> str:
     response = await client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.2,

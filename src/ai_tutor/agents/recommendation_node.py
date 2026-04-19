@@ -93,7 +93,7 @@ def _build_next_skills_section(level: str, graph_context: dict | None) -> str:
 )
 async def _call_recommend_llm(client: AsyncOpenAI, messages: list) -> str:
     response = await client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.3,

@@ -11,7 +11,7 @@ import torch  # noqa: E402
 
 from ai_tutor.agents.graph import run_tutor  # noqa: E402
 
-_DATA_PATH = Path(__file__).parents[3] / "data" / "test.csv"
+_DATA_PATH = Path(__file__).parents[2] / "data" / "test.csv"
 _BLOCK_SIZE = 512
 
 
