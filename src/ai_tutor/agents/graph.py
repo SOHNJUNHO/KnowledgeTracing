@@ -11,12 +11,13 @@ Graph flow:
 """
 
 from typing import Any, cast
-from langgraph.graph import StateGraph, START, END
-from langfuse.decorators import observe, langfuse_context
 
-from ai_tutor.agents.state import AgentState
-from ai_tutor.agents.diagnosis_node import run_bkt_node, diagnose_node
+from langfuse.decorators import langfuse_context, observe
+from langgraph.graph import END, START, StateGraph
+
+from ai_tutor.agents.diagnosis_node import diagnose_node, run_bkt_node
 from ai_tutor.agents.recommendation_node import recommend_node
+from ai_tutor.agents.state import AgentState
 
 
 def build_graph():

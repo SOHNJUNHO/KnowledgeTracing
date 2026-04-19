@@ -6,7 +6,7 @@ node import from a single source of truth.  Override fields by
 subclassing or passing keyword arguments to the constructor.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

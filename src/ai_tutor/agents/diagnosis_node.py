@@ -27,18 +27,17 @@ hosted model is shared across many API workers rather than replicated.
 import json
 import os
 from collections import defaultdict
-from pathlib import Path
 
 import httpx
 from langfuse import Langfuse
+from langfuse.decorators import langfuse_context, observe
 from langfuse.openai import AsyncOpenAI
-from langfuse.decorators import observe, langfuse_context
-from openai import RateLimitError, APIConnectionError, APITimeoutError
+from openai import APIConnectionError, APITimeoutError, RateLimitError
 from pydantic import ValidationError
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from ai_tutor.agents.schemas import AnalysisRecord, BKTTimestep
 from ai_tutor.agents.state import AgentState
-from ai_tutor.agents.schemas import BKTTimestep, AnalysisRecord
 
 # ---------------------------------------------------------------------------
 # BKTransformer inference service URL — override via BKT_SERVICE_URL env var
@@ -82,16 +81,15 @@ async def run_bkt_node(state: AgentState) -> dict:
         resp.raise_for_status()
         result = resp.json()
 
-    #corrects = [[p0, p1, p2, p3, ...]]        # shape: (1, T)        — predicted correct probability per timestep
-    #latents  = [[skill0, skill1, ...], ...]    # shape: (T, n_skills) — knowledge level per skill, per timestep 
-    #params   = [[[lr, ?, g, s], ...], ...]     # shape: (T, n_skills, 4) — BKT params per skill, per timestep
+    # corrects: (1, T)         — predicted correct probability per timestep
+    # latents:  (T, n_skills) — knowledge level per skill, per timestep
+    # params:   (T, n_skills, 4) — BKT params [lr, ?, guess, slip] per skill
 
     corrects = result["corrects"]      # [[...]]
     latents = result["latents"]        # [[...]] — per timestep, per skill
     params = result["params"]          # [[...]] — per timestep, per skill, 4 values
 
     T = len(latents)
-    n_skills = len(latents[0])
     diagnosis: dict = {}
 
     for t in range(T):
@@ -160,14 +158,14 @@ def _aggregate_bkt_by_skill(diagnosis: dict) -> dict[int, dict]:
 
     aggregated: dict[int, dict] = {}
     for skill_id, steps in skill_timesteps.items():
-        priors = [s["prior"] for s in steps]
+        priors = [round(s["prior"], 4) for s in steps]
         corrects = [s["actual_correct"] for s in steps]
 
         aggregated[skill_id] = {
             "skill_name":     steps[0]["skill_name"],
             "n_observations": len(steps),
             "accuracy_rate":  round(sum(corrects) / len(corrects), 3),
-            "priors":         [round(s["prior"], 4) for s in steps],
+            "priors":         priors,
             "learning_rates": [round(s["learning_rate"], 4) for s in steps],
             "guesses":        [round(s["guess"], 4) for s in steps],
             "slips":          [round(s["slip"],  4) for s in steps],
@@ -254,7 +252,7 @@ async def diagnose_node(state: AgentState) -> dict:
 
     client = AsyncOpenAI()
     messages = [
-        {"role": "system", "content": "당신은 JSON 형식으로 정확하게 응답하는 학습 데이터 분석 전문가입니다."},
+        {"role": "system", "content": "당신은 JSON 형식으로 정확하게 응답하는 학습 데이터 분석 전문가입니다."},  # noqa: E501
         {"role": "user",   "content": prompt},
     ]
 

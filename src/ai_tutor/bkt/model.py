@@ -162,10 +162,10 @@ class BKTransformer(nn.Module):
         loss = (
             lambd[0] * (
                 F.relu(params[..., 0] - (1 - params[..., 3]) / (params[..., 2] + 1e-6)).mean()
-                + F.relu(oparams_sig[..., 0] - (1 - oparams_sig[..., 3]) / (oparams_sig[..., 2] + 1e-6)).mean()
+                + F.relu(oparams_sig[..., 0] - (1 - oparams_sig[..., 3]) / (oparams_sig[..., 2] + 1e-6)).mean()  # noqa: E501
             )
-            + lambd[1] * (F.relu(params[..., 2] - 0.5).mean() + F.relu(oparams_sig[..., 2] - 0.5).mean())
-            + lambd[2] * (F.relu(params[..., 3] - 0.5).mean() + F.relu(oparams_sig[..., 3] - 0.5).mean())
+            + lambd[1] * (F.relu(params[..., 2] - 0.5).mean() + F.relu(oparams_sig[..., 2] - 0.5).mean())  # noqa: E501
+            + lambd[2] * (F.relu(params[..., 3] - 0.5).mean() + F.relu(oparams_sig[..., 3] - 0.5).mean())  # noqa: E501
             + lambd[3] * torch.mean(logit_diff ** 2)
             + lambd[3] * (
                 torch.mean((logit_diff[:, 1:] - logit_diff[:, :-1]) ** 2)
@@ -181,7 +181,7 @@ class BKTransformer(nn.Module):
         return corrects, latents, params, loss
 
     def extract_latent_correct(self, params, latent, true_correct, skills):
-        l, g, s = params[..., 0], params[..., 2], params[..., 3]
+        learning, g, s = params[..., 0], params[..., 2], params[..., 3]
 
         correct = latent * (1 - s) + (1 - latent) * g
         k_t1 = (latent * (1 - s)) / (latent * (1 - s) + (1 - latent) * g)
@@ -195,6 +195,6 @@ class BKTransformer(nn.Module):
         )
         k_t[range(len(k_t)), skills] = (
             k_t[range(len(k_t)), skills]
-            + (1 - k_t[range(len(k_t)), skills]) * l[range(len(k_t)), skills]
+            + (1 - k_t[range(len(k_t)), skills]) * learning[range(len(k_t)), skills]
         )
         return correct, torch.clamp(k_t, 1e-4, 1 - 1e-4)

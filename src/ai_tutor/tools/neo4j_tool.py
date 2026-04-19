@@ -14,8 +14,9 @@ The three tools correspond to the proficiency-gated Cypher queries in tools.yaml
 """
 
 import os
-from toolbox_langchain import ToolboxClient
+
 from toolbox_core.protocol import Protocol
+from toolbox_langchain import ToolboxClient
 
 TOOLBOX_URL = os.getenv("TOOLBOX_URL", "http://localhost:5001")
 

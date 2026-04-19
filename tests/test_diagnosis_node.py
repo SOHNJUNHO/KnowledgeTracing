@@ -6,9 +6,9 @@ Pydantic validation).  No model checkpoint or LLM calls are made.
 """
 
 import pytest
+
 from ai_tutor.agents.diagnosis_node import _aggregate_bkt_by_skill, _build_output_template
 from ai_tutor.agents.schemas import AnalysisRecord
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -71,7 +71,7 @@ def test_aggregate_guesses_and_slips_are_lists():
 
 def test_aggregate_priors_single_observation():
     single = {
-        "t0": {**MOCK_DIAGNOSIS["timestep0"], "skill_id": 3, "skill_name": "Skill C", "prior": 0.50},
+        "t0": {**MOCK_DIAGNOSIS["timestep0"], "skill_id": 3, "skill_name": "Skill C", "prior": 0.50},  # noqa: E501
     }
     result = _aggregate_bkt_by_skill(single)
     assert result[3]["priors"] == [pytest.approx(0.50, abs=1e-4)]

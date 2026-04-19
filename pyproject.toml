@@ -16,6 +16,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.14",
     "mypy>=1.10",
+    "ruff>=0.4",
 ]
 
 [tool.setuptools.packages.find]
@@ -25,6 +26,13 @@ where = ["src"]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

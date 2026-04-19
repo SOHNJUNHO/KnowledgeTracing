@@ -6,6 +6,7 @@ execution fast without a GPU.  No checkpoint is loaded.
 """
 
 import inspect
+
 import pytest
 import torch
 

@@ -18,14 +18,14 @@ import json
 from typing import Any, cast
 
 from langfuse import Langfuse
+from langfuse.decorators import langfuse_context, observe
 from langfuse.openai import AsyncOpenAI
-from langfuse.decorators import observe, langfuse_context
-from openai import RateLimitError, APIConnectionError, APITimeoutError
+from openai import APIConnectionError, APITimeoutError, RateLimitError
 from pydantic import ValidationError
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from ai_tutor.agents.state import AgentState
 from ai_tutor.agents.schemas import FeedbackRecord
+from ai_tutor.agents.state import AgentState
 from ai_tutor.tools.neo4j_tool import get_tool
 
 _TOOL_MAP = {
@@ -146,7 +146,7 @@ async def _process_skill(client: AsyncOpenAI, kc_data: dict) -> dict | None:
     messages = [
         {
             "role": "system",
-            "content": "당신은 학생의 학습 상태를 분석하고, 교육과정 기반으로 맞춤형 피드백을 제공하는 교육 전문가입니다.",
+            "content": "당신은 학생의 학습 상태를 분석하고, 교육과정 기반으로 맞춤형 피드백을 제공하는 교육 전문가입니다.",  # noqa: E501
         },
         {"role": "user", "content": prompt},
     ]

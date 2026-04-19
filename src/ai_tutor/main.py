@@ -1,11 +1,13 @@
 import asyncio
+
 from dotenv import load_dotenv
 
 # Load environment variables before any package imports that read them
 load_dotenv()
 
-import torch
-from ai_tutor.agents.graph import run_tutor
+import torch  # noqa: E402
+
+from ai_tutor.agents.graph import run_tutor  # noqa: E402
 
 
 async def main() -> None:

@@ -7,12 +7,12 @@ and concurrent fan-out behaviour without making any network calls.
 """
 
 import json
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from ai_tutor.agents.recommendation_node import _build_next_skills_section
 from ai_tutor.agents.schemas import FeedbackRecord
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

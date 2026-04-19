@@ -13,6 +13,7 @@ nodes later as a KeyError.
 """
 
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
