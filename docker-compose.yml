@@ -1,11 +1,11 @@
 services:
-  toolbox:
-    # Verify the latest tag at: https://github.com/googleapis/genai-toolbox/releases
-    image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest
+  bkt-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.bkt
     ports:
-      - "5001:5001"
-    volumes:
-      - ./tools.yaml:/tools.yaml
-    command: ["--tools-file", "/tools.yaml", "--address", "0.0.0.0", "--port", "5001"]
+      - "8001:8080"
     env_file:
       - .env
+    environment:
+      - GCS_CHECKPOINT_URI=${GCS_CHECKPOINT_URI}

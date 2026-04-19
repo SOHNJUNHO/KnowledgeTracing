@@ -6,7 +6,7 @@ Graph flow:
 
   run_bkt   : BKTransformer inference → per-skill BKT parameters
   diagnose  : LLM assigns proficiency level + reasoning per skill
-  recommend : Neo4j GraphRAG (via MCP Toolbox) + LLM generates study feedback
+  recommend : Neo4j GraphRAG + LLM generates study feedback
               (async node — all skills are processed concurrently)
 """
 

@@ -115,7 +115,7 @@ async def _process_skill(client: AsyncOpenAI, kc_data: dict) -> dict | None:
 
     if cache_key not in _graph_cache:
         tool = get_tool(tool_name)
-        raw = await asyncio.to_thread(tool.invoke, {"skill_id": skill_id})
+        raw = await tool(skill_id=skill_id)
         if isinstance(raw, str):
             try:
                 parsed = json.loads(raw)
