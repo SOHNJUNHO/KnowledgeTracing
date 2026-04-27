@@ -56,4 +56,4 @@ env/
 venv/
 ENV/
 env.bak/
-venv.bak/
+venv.bak/k8s/secret.yaml

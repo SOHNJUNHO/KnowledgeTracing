@@ -30,9 +30,10 @@ from collections import defaultdict
 
 import httpx
 from langfuse import Langfuse
-from langfuse.openai import AsyncOpenAI
 from langfuse.decorators import observe, langfuse_context
 from openai import RateLimitError, APIConnectionError, APITimeoutError
+
+from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
@@ -71,8 +72,8 @@ async def run_bkt_node(state: AgentState) -> dict:
     skill_id_to_name: dict = state["skill_id_to_name"]
 
     payload = {
-        "obs": state["obs"].tolist(),
-        "output": state["output"].tolist(),
+        "obs": state["obs"],
+        "output": state["output"],
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -89,13 +90,13 @@ async def run_bkt_node(state: AgentState) -> dict:
     diagnosis: dict = {}
 
     for t in range(T):
-        skill_id = int(state["output"][0, t, 0].item())
+        skill_id = int(state["output"][0][t][0])
         if skill_id == -1000:
             continue
         entry = BKTTimestep(
             skill_id=skill_id,
             skill_name=skill_id_to_name.get(skill_id, str(skill_id)),
-            actual_correct=int(state["output"][0, t, 1].item()),
+            actual_correct=int(state["output"][0][t][1]),
             prior=float(latents[t][skill_id]),
             learning_rate=float(params[t][skill_id][0]),
             guess=float(params[t][skill_id][2]),
@@ -172,9 +173,9 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_diagnose_llm(client: AsyncOpenAI, messages: list) -> str:
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+async def _call_diagnose_llm(client: object, messages: list) -> str:
+    response = await client.chat.completions.create(  # type: ignore[union-attr]
+        model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.2,
@@ -199,7 +200,7 @@ async def diagnose_node(state: AgentState) -> dict:
         template_json=json.dumps(template, indent=2, ensure_ascii=False),
     )
 
-    client = AsyncOpenAI()
+    client = get_llm_client()
     messages = [
         {"role": "system", "content": "당신은 JSON 형식으로 정확하게 응답하는 학습 데이터 분석 전문가입니다."},
         {"role": "user",   "content": prompt},

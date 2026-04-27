@@ -15,5 +15,5 @@ class BKTConfig:
     n_embd: int = 256
     n_layer: int = 3
     n_head: int = 4
-    block_size: int = 512
+    block_size: int = 189
     dropout: float = 0.1

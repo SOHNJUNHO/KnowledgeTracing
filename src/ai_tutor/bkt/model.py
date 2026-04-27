@@ -115,26 +115,40 @@ class BKTransformer(nn.Module):
         return logits, logit_diff, oparams, params
 
     def _run_bkt_loop(self, obs, output, params, logits):
-        """Iterate the BKT update rule over T timesteps."""
+        """Iterate the BKT update rule over block_size timesteps (padded to fixed length)."""
         B, T, _ = obs.shape
-        corrects = torch.zeros_like(params[..., -1])
-        latent = torch.sigmoid(logits[..., 0].repeat((B, 1)))
+        S = self.config.block_size  # 189 — constant loop count, ONNX-traceable
 
-        latents = []
-        for i in range(T):
+        # Pad inputs to fixed length so range(S) is a Python constant at ONNX export time.
+        # Causal attention in _encode means params at real timesteps (0..T-1) are unaffected
+        # by the padding. Only padded step outputs are corrupted; those are trimmed in the
+        # service layer before returning to the caller.
+        pad = S - T
+        if pad > 0:
+            obs    = F.pad(obs,    (0, 0, 0, pad))
+            output = F.pad(output, (0, 0, 0, pad), value=-1000)
+            params = F.pad(params, (0, 0, 0, 0, 0, pad))   # pad dim 1 (T)
+
+        corrects = torch.zeros(B, S, params.shape[2], device=obs.device)
+        latent   = torch.sigmoid(logits[..., 0].repeat((B, 1)))
+
+        latent_list = []
+        for i in range(S):  # constant — ONNX-traceable
             latent = torch.clamp(latent, min=1e-5, max=1 - 1e-5)
-            latents.append(latent)
+            latent_list.append(latent)
             correct, latent = self.extract_latent_correct(
                 params[:, i].view(B, -1, 4),
                 latent,
                 true_correct=output[:, i, -1],
                 skills=torch.where(output[:, i, 0] == -1000, 0, output[:, i, 0]).long(),
             )
-            corrects[:, i] = correct.squeeze()
+            corrects[:, i] = correct
+
+        latents = torch.stack(latent_list, dim=1)  # (B, S, n_skills) — tensor, not list
 
         skill_idx = torch.where(output[..., 0] == -1000, 0, output[..., 0]).long()
-        corrects = torch.gather(corrects, dim=-1, index=skill_idx.unsqueeze(-1))
-        return corrects, latents
+        corrects  = torch.gather(corrects, dim=-1, index=skill_idx.unsqueeze(-1))
+        return corrects, latents  # shapes (B, S, 1) and (B, S, n_skills) — not trimmed
 
     # ------------------------------------------------------------------
     # Inference-only forward — no loss computation
@@ -155,6 +169,7 @@ class BKTransformer(nn.Module):
 
     def forward(self, obs, output, lambd=(50, 50, 50, 1)):
         """Full training forward pass. Returns (corrects, latents, params, loss)."""
+        _, T, _ = obs.shape  # save original T — corrects from _run_bkt_loop is padded to S
         logits, logit_diff, oparams, params = self._encode(obs, output)
 
         oparams_sig = torch.sigmoid(oparams.view(-1, 4))
@@ -176,7 +191,7 @@ class BKTransformer(nn.Module):
         corrects, latents = self._run_bkt_loop(obs, output, params, logits)
 
         mask = output[..., 1] != -1000
-        loss = loss + F.binary_cross_entropy(corrects[mask], output[..., 1:][mask])
+        loss = loss + F.binary_cross_entropy(corrects[:, :T][mask], output[..., 1:][mask])
 
         return corrects, latents, params, loss
 
@@ -185,16 +200,16 @@ class BKTransformer(nn.Module):
 
         correct = latent * (1 - s) + (1 - latent) * g
         k_t1 = (latent * (1 - s)) / (latent * (1 - s) + (1 - latent) * g)
-        k_t0 = (latent * s) / (latent * s + (1 - latent) * (1 - g))
-        k_t = torch.clone(latent)
+        k_t0 = (latent * s)       / (latent * s       + (1 - latent) * (1 - g))
 
-        k_t[range(len(k_t)), skills] = torch.where(
-            true_correct > 0.5,
-            k_t1[range(len(k_t)), skills],
-            k_t0[range(len(k_t)), skills],
-        )
-        k_t[range(len(k_t)), skills] = (
-            k_t[range(len(k_t)), skills]
-            + (1 - k_t[range(len(k_t)), skills]) * l[range(len(k_t)), skills]
-        )
+        # Replace Python range indexing with torch.gather/scatter — ONNX-compatible
+        idx      = skills.unsqueeze(-1)                                    # (B, 1)
+        k_t1_sel = torch.gather(k_t1, dim=1, index=idx).squeeze(-1)       # (B,)
+        k_t0_sel = torch.gather(k_t0, dim=1, index=idx).squeeze(-1)
+        l_sel    = torch.gather(l,    dim=1, index=idx).squeeze(-1)
+
+        new_k = torch.where(true_correct > 0.5, k_t1_sel, k_t0_sel)
+        new_k = new_k + (1 - new_k) * l_sel
+
+        k_t = latent.scatter(1, idx, new_k.unsqueeze(-1))
         return correct, torch.clamp(k_t, 1e-4, 1 - 1e-4)

@@ -26,18 +26,21 @@ def tiny_model() -> BKTransformer:
 def test_infer_corrects_shape(tiny_model):
     obs    = torch.zeros(1, 5, 2)
     output = torch.zeros(1, 5, 2)
+    S = tiny_model.config.block_size
     with torch.no_grad():
         corrects, latents, params = tiny_model.infer(obs, output)
-    assert corrects.shape == (1, 5, 1)
+    assert corrects.shape == (1, S, 1)  # padded to block_size
 
 
 def test_infer_latents_length(tiny_model):
     T = 7
     obs    = torch.zeros(1, T, 2)
     output = torch.zeros(1, T, 2)
+    S = tiny_model.config.block_size
     with torch.no_grad():
         _, latents, _ = tiny_model.infer(obs, output)
-    assert len(latents) == T
+    # latents is now a tensor (B, S, n_skills) padded to block_size
+    assert latents.shape == (1, S, tiny_model.n_skills)
 
 
 def test_infer_params_shape(tiny_model):
@@ -63,9 +66,9 @@ def test_infer_priors_in_unit_interval(tiny_model):
     output = torch.zeros(1, 4, 2)
     with torch.no_grad():
         _, latents, _ = tiny_model.infer(obs, output)
-    for latent in latents:
-        assert latent.min().item() >= 0.0
-        assert latent.max().item() <= 1.0
+    # latents is now a tensor (B, S, n_skills)
+    assert latents.min().item() >= 0.0
+    assert latents.max().item() <= 1.0
 
 
 # ---------------------------------------------------------------------------

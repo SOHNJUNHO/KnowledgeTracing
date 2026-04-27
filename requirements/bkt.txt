@@ -1,0 +1,7 @@
+--index-url https://download.pytorch.org/whl/cpu
+torch
+torchtune
+fastapi
+"uvicorn[standard]"
+pydantic
+python-dotenv

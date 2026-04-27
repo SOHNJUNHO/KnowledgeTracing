@@ -18,9 +18,10 @@ import json
 from typing import Any, cast
 
 from langfuse import Langfuse
-from langfuse.openai import AsyncOpenAI
 from langfuse.decorators import observe, langfuse_context
 from openai import RateLimitError, APIConnectionError, APITimeoutError
+
+from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
@@ -91,9 +92,9 @@ def _build_next_skills_section(level: str, graph_context: dict | None) -> str:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_recommend_llm(client: AsyncOpenAI, messages: list) -> str:
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+async def _call_recommend_llm(client: object, messages: list) -> str:
+    response = await client.chat.completions.create(  # type: ignore[union-attr]
+        model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.3,
@@ -105,7 +106,7 @@ async def _call_recommend_llm(client: AsyncOpenAI, messages: list) -> str:
 # Per-skill coroutine — graph fetch + prompt compile + LLM call
 # ---------------------------------------------------------------------------
 
-async def _process_skill(client: AsyncOpenAI, kc_data: dict) -> dict | None:
+async def _process_skill(client: object, kc_data: dict) -> dict | None:
     """Fetch graph context and generate LLM feedback for a single skill."""
     level    = kc_data["proficiency_level"]
     skill_id = kc_data["kc_id"]
@@ -188,7 +189,7 @@ async def recommend_node(state: AgentState) -> dict:
     Reads:   state['analysis']
     Writes:  state['feedback']
     """
-    client = AsyncOpenAI()
+    client = get_llm_client()
 
     # Fan out: all skills are processed concurrently
     results = await asyncio.gather(*[

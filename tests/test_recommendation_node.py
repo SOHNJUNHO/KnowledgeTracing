@@ -133,7 +133,7 @@ async def test_recommend_node_returns_feedback_for_all_skills(mocker):
     mock_response.choices[0].message.content = llm_payload
     mock_client = AsyncMock()
     mock_client.chat.completions.create.return_value = mock_response
-    mocker.patch("ai_tutor.agents.recommendation_node.AsyncOpenAI", return_value=mock_client)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_client", return_value=mock_client)
 
     from ai_tutor.agents.recommendation_node import recommend_node
     result = await recommend_node({"analysis": [KC_LOW, KC_HIGH]})
@@ -153,7 +153,7 @@ async def test_recommend_node_calls_llm_once_per_skill(mocker):
     mock_response.choices[0].message.content = llm_payload
     mock_client = AsyncMock()
     mock_client.chat.completions.create.return_value = mock_response
-    mocker.patch("ai_tutor.agents.recommendation_node.AsyncOpenAI", return_value=mock_client)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_client", return_value=mock_client)
 
     from ai_tutor.agents.recommendation_node import recommend_node
     n_skills = 3
@@ -176,7 +176,7 @@ async def test_recommend_node_skips_invalid_llm_output(mocker):
     mock_response.choices[0].message.content = bad_payload
     mock_client = AsyncMock()
     mock_client.chat.completions.create.return_value = mock_response
-    mocker.patch("ai_tutor.agents.recommendation_node.AsyncOpenAI", return_value=mock_client)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_client", return_value=mock_client)
 
     from ai_tutor.agents.recommendation_node import recommend_node
     result = await recommend_node({"analysis": [KC_LOW, KC_HIGH]})

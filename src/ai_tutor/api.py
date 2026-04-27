@@ -10,7 +10,6 @@ Run locally:
 Environment variables: same as the CLI (see .env.example).
 """
 
-import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -66,9 +65,9 @@ async def tutor(req: TutorRequest) -> TutorResponse:
     if len(req.sequence) < 2:
         raise HTTPException(status_code=422, detail="sequence must have at least 2 timesteps")
 
-    t = torch.tensor(req.sequence, dtype=torch.float32)
-    obs    = t[:-1].unsqueeze(0)   # (1, T-1, 2)
-    output = t[1:].unsqueeze(0)    # (1, T-1, 2)
+    seq    = req.sequence
+    obs    = [seq[:-1]]   # (1, T-1, 2) as nested list
+    output = [seq[1:]]    # (1, T-1, 2) as nested list
 
     skill_id_to_name = {int(k): v for k, v in req.skill_id_to_name.items()}
 

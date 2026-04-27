@@ -6,18 +6,39 @@ services:
   bkt-service:
     build:
       context: .
-      dockerfile: Dockerfile.bkt
+      dockerfile: services/Dockerfile.bkt
     ports:
-      - "8001:8080"
+      - "8001:8001"
     env_file:
       - .env
-    environment:
-      - GCS_CHECKPOINT_URI=${GCS_CHECKPOINT_URI}
     networks:
       - tutor-net
 
   # --------------------------------------------------------------------------
-  # Main tutor API
+  # vLLM inference server — only starts with: docker compose --profile vllm up
+  # Requires an NVIDIA GPU on the host machine.
+  # --------------------------------------------------------------------------
+  vllm-service:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    command: ["--model", "${VLLM_MODEL_NAME}", "--port", "8080"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - tutor-net
+    profiles:
+      - vllm
+
+  # --------------------------------------------------------------------------
+  # Orchestrator — thin FastAPI that drives the tutor workflow
   # --------------------------------------------------------------------------
   app:
     build:
@@ -28,7 +49,13 @@ services:
     env_file:
       - .env
     environment:
-      BKT_SERVICE_URL: http://bkt-service:8080
+      BKT_SERVICE_URL: http://bkt-service:8001
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USERNAME: ${NEO4J_USERNAME}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      LLM_BACKEND: ${LLM_BACKEND}
+      LLM_MODEL: ${LLM_MODEL}
+      VLLM_BASE_URL: http://vllm-service:8080/v1
     depends_on:
       - bkt-service
     networks:

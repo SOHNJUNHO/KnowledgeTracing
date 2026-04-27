@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-service
+  namespace: ai-tutor
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: neo4j-service
+  template:
+    metadata:
+      labels:
+        app: neo4j-service
+    spec:
+      containers:
+        - name: neo4j-service
+          image: your-registry/neo4j-service:latest
+          ports:
+            - containerPort: 8002
+          envFrom:
+            - secretRef:
+                name: ai-tutor-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 15

@@ -1,44 +1,11 @@
-"""
-Neo4j tools via async direct driver connection.
-
-Cypher queries mirror tools.yaml exactly — that file remains as a human-readable
-reference but is no longer executed at runtime.
-
-Environment variables required:
-    NEO4J_URI       — e.g. neo4j+s://xxxx.databases.neo4j.io
-    NEO4J_USERNAME  — e.g. neo4j
-    NEO4J_PASSWORD  — your Aura password
-"""
-
 import os
 from typing import Any
 
-from neo4j import AsyncDriver, AsyncGraphDatabase
+from neo4j import AsyncGraphDatabase
 
-_driver: AsyncDriver | None = None
-
-
-async def _get_driver() -> AsyncDriver:
-    global _driver
-    if _driver is None:
-        _driver = AsyncGraphDatabase.driver(
-            os.environ["NEO4J_URI"],
-            auth=(os.environ["NEO4J_USERNAME"], os.environ["NEO4J_PASSWORD"]),
-        )
-    return _driver
-
-
-async def _run_query(query: str, params: dict) -> list[dict]:
-    driver = await _get_driver()
-    async with driver.session() as session:
-        result = await session.run(query, params)
-        records: list[dict] = await result.data()
-        return records
-
-
-# ---------------------------------------------------------------------------
-# Cypher queries (mirrored from tools.yaml)
-# ---------------------------------------------------------------------------
+_NEO4J_URI      = os.environ.get("NEO4J_URI", "")
+_NEO4J_USER     = os.environ.get("NEO4J_USERNAME", "")
+_NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
 
 _GET_PREREQUISITES = """
 MATCH (current:KnowledgeComponent {skill_id: $skill_id})
@@ -81,35 +48,35 @@ RETURN
   }) AS next_skills
 """
 
-_QUERIES: dict[str, str] = {
+_TOOL_TO_QUERY: dict[str, str] = {
     "get_prerequisites":     _GET_PREREQUISITES,
     "get_current_concept":   _GET_CURRENT_CONCEPT,
     "get_advanced_concepts": _GET_ADVANCED_CONCEPTS,
 }
 
 
-# ---------------------------------------------------------------------------
-# Public interface
-# ---------------------------------------------------------------------------
-
 class _Tool:
-    """Async-callable wrapper so recommendation_node can do: await tool(skill_id=x)."""
-
     def __init__(self, name: str, query: str) -> None:
-        self.name = name
+        self._name = name
         self._query = query
 
     async def __call__(self, **kwargs: Any) -> list[dict]:
-        return await _run_query(self._query, kwargs)
+        driver = AsyncGraphDatabase.driver(
+            _NEO4J_URI, auth=(_NEO4J_USER, _NEO4J_PASSWORD)
+        )
+        async with driver.session() as session:
+            result = await session.run(self._query, skill_id=kwargs["skill_id"])
+            records = await result.data()
+        await driver.close()
+        return records
 
 
 _tool_cache: dict[str, _Tool] = {}
 
 
 def get_tool(name: str) -> _Tool:
-    """Retrieve an async-callable Neo4j tool by name (sync — pure cache lookup)."""
-    if name not in _QUERIES:
-        raise KeyError(f"Tool '{name}' not found. Available: {list(_QUERIES.keys())}")
     if name not in _tool_cache:
-        _tool_cache[name] = _Tool(name, _QUERIES[name])
+        if name not in _TOOL_TO_QUERY:
+            raise KeyError(f"Unknown tool: {name!r}")
+        _tool_cache[name] = _Tool(name, _TOOL_TO_QUERY[name])
     return _tool_cache[name]

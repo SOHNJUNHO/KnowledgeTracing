@@ -11,24 +11,26 @@ Based on the master's thesis: **TutorAgent: BKTransformer 기반 지식 추적�
 LLMs are powerful feedback generators, but they have three fundamental problems in educational settings:
 
 1. **Hallucination** — they produce inconsistent or factually wrong feedback
-2. **Omitted Relationships** — they cannot reflect the curriculum, the relationships between knowledge concepts
+2. **Omitted Relationships** — they cannot reflect the curriculum or the relationships between knowledge concepts
 3. **Opacity** — they cannot explain *why* they gave a particular response
 
-This project addresses all three with a step-by-step approach:
-- **Transparent parameter extraction**: Unlike the black-box computations of conventional deep learning KT models, BKTransformer outputs BKT parameters (P(know), P(learn), P(guess), P(slip)) grounded in Bayes' theorem, making the knowledge state transparent.
-- **Interpretable diagnosis**: The diagnosis agent logically evaluates the extracted BKT parameters to determine a student's proficiency level (High / Mid / Low) per knowledge concept.
-- **Hallucination-free personalized recommendation**: Based on the diagnosis, the recommendation agent queries a knowledge graph (Neo4j) that encodes curriculum relationships, producing accurate, grounded feedback without LLM hallucination.
+This project addresses all three:
+- **Transparent parameter extraction**: BKTransformer outputs BKT parameters (P(know), P(learn), P(guess), P(slip)) grounded in Bayes' theorem, making the knowledge state transparent instead of black-box.
+- **Interpretable diagnosis**: The diagnosis agent logically evaluates BKT parameters to assign a proficiency level (High / Mid / Low) per knowledge concept.
+- **Hallucination-free recommendations**: Based on the diagnosis, the recommendation agent queries a knowledge graph (Neo4j) that encodes curriculum relationships, producing grounded feedback without hallucination.
 
 ---
 
 ## Architecture
+
+### Pipeline
 
 ```
 Student Interaction History (skill_id, correct) × T timesteps
                         │
                         ▼
          ┌──────────────────────────┐
-         │   BKTransformer (PyTorch)│
+         │   BKTransformer (PyTorch)│  ← bkt-service (port 8001)
          │       RoPE · SwiGLU      │
          └──────────────────────────┘
                         │
@@ -37,17 +39,17 @@ Student Interaction History (skill_id, correct) × T timesteps
                         │
                         ▼
          ┌──────────────────────────┐
-         │     Diagnosis Agent      │
-         │       (GPT-4o-mini)      │
+         │     Diagnosis Agent      │  ← LLM via orchestrator-api
+         │   (OpenAI / vLLM)        │
          └──────────────────────────┘
                         │
               Proficiency Level (상 / 중 / 하)
                         │
                         ▼
          ┌──────────────────────────┐
-         │   Recommendation Agent   │
-         │       (GPT-4o-mini)      │
-         │   Neo4j GraphRAG (MCP)   │
+         │   Recommendation Agent   │  ← LLM + neo4j-service (port 8002)
+         │   (OpenAI / vLLM)        │
+         │   Neo4j GraphRAG         │
          │   Predefined Cypher Query│
          └──────────────────────────┘
                         │
@@ -55,7 +57,7 @@ Student Interaction History (skill_id, correct) × T timesteps
             Personalized Study Feedback
 ```
 
-**LangGraph Flow:** `START → run_bkt → diagnose → recommend → END`
+**Workflow:** `StartEvent → run_bkt → BKTDoneEvent → diagnose → DiagnosisDoneEvent → recommend → StopEvent`
 
 **Cypher Query Selection by Proficiency:**
 | Level | Query | Purpose |
@@ -64,21 +66,102 @@ Student Interaction History (skill_id, correct) × T timesteps
 | 중 (Mid) | `get_current_concept` | Reinforce the current concept |
 | 상 (High) | `get_advanced_concepts` | Surface next concepts the student is ready for |
 
+### Microservices
+
+The system is split into four independent services, each with its own Dockerfile and Kubernetes manifests:
+
+```
+orchestrator-api   src/ai_tutor/api.py          port 8000   FastAPI — drives the tutor workflow
+bkt-service        services/bkt_service.py       port 8001   BKTransformer inference (PyTorch)
+neo4j-service      services/neo4j_service.py     port 8002   Neo4j Cypher query wrapper
+vllm-service       vllm/vllm-openai (image)      port 8080   Local LLM serving (opt-in, GPU)
+```
+
+Services communicate over HTTP. The orchestrator never touches Neo4j or the BKT model directly — it calls the relevant service and moves on.
+
 ---
 
 ## Key Design Decisions
 
 **1. BKT Parameters as LLM Input**
-- Unlike conventional deep learning KT models that output proficiency directly through uninterpretable neural computations, BKTransformer derives proficiency by applying Bayes' theorem to explicit BKT parameters. This provides transparency into how and why each correctness probability was produced.
+Unlike conventional deep learning KT models that output proficiency directly through uninterpretable neural computations, BKTransformer derives proficiency by applying Bayes' theorem to explicit BKT parameters. This provides transparency into how and why each correctness probability was produced.
 
 **2. Predefined Tool Selection**
-- The recommendation agent does not decide which Cypher query to run. The proficiency level from the diagnosis agent determines the query. This guarantees transparency in the GraphRAG retrieval step.
+The recommendation agent does not decide which Cypher query to run. The proficiency level from the diagnosis agent determines the query. This guarantees transparency in the GraphRAG retrieval step.
 
-**3. MCP for Graph Access**
-- Neo4j is accessed via Google GenAI Toolbox (MCP pattern) rather than a direct driver. This decouples the graph interface from the agent code and makes the tool layer independently testable and replaceable.
+**3. LLM Backend Toggle**
+`LLM_BACKEND=openai` routes calls to the OpenAI API (with Langfuse tracing). `LLM_BACKEND=vllm` routes to a local vLLM server with no external dependency. Switching requires no code change — only a config update.
 
 **4. Langfuse for Full Observability**
-- Every pipeline run is traced end-to-end: BKT output, LLM prompts/responses, graph context, and final feedback. This supports human expert evaluation and iterative prompt improvement.
+Every pipeline run is traced end-to-end: BKT output, LLM prompts/responses, graph context, and final feedback. This supports human expert evaluation and iterative prompt improvement.
+
+---
+
+## LlamaIndex Workflows vs LangGraph
+
+The pipeline was initially prototyped using **LangGraph** and later migrated to **LlamaIndex Workflows**. This section explains what changed and why.
+
+### LangGraph — "Think like a flowchart"
+
+LangGraph models the pipeline as a directed graph. Nodes are functions, edges are connections, and all nodes share a single mutable `AgentState` dictionary.
+
+```python
+graph = StateGraph(AgentState)
+graph.add_node("run_bkt",  run_bkt_node)
+graph.add_node("diagnose", diagnose_node)
+graph.add_node("recommend",recommend_node)
+graph.add_edge(START,       "run_bkt")
+graph.add_edge("run_bkt",   "diagnose")
+graph.add_edge("diagnose",  "recommend")
+graph.add_edge("recommend", END)
+tutor_graph = graph.compile()
+await tutor_graph.ainvoke(state)
+```
+
+Every node reads whatever it wants from `AgentState` and writes back into it. This is flexible but has a cost: it is easy for a node to silently read a key that was never set, or overwrite a key another node depends on. The edges and state schema must be kept in sync manually.
+
+### LlamaIndex Workflows — "Think like typed events"
+
+LlamaIndex Workflows model the pipeline as event-driven steps. Each step receives a typed event and emits a typed event. There is no shared mutable dictionary.
+
+```python
+class TutorWorkflow(Workflow):
+
+    @step
+    async def run_bkt(self, ev: StartEvent) -> BKTDoneEvent:
+        result = await run_bkt_node(ev.state)
+        return BKTDoneEvent(diagnosis=result["diagnosis"], ...)
+
+    @step
+    async def diagnose(self, ev: BKTDoneEvent) -> DiagnosisDoneEvent:
+        result = await diagnose_node(ev.state)
+        return DiagnosisDoneEvent(analysis=result["analysis"], ...)
+
+    @step
+    async def recommend(self, ev: DiagnosisDoneEvent) -> StopEvent:
+        result = await recommend_node(ev.state)
+        return StopEvent(result=result["feedback"])
+```
+
+The workflow infers execution order from the event types — if `diagnose` takes a `BKTDoneEvent`, it will automatically run after the step that emits one. There are no manual `add_edge` calls.
+
+### Why the migration was made
+
+| Concern | LangGraph | LlamaIndex Workflows |
+|---|---|---|
+| **Data passing** | Shared mutable `AgentState` dict | Typed events — each step only sees what it needs |
+| **Routing** | Explicit `add_edge()` calls | Inferred from return type — less boilerplate |
+| **Error isolation** | One state object; one node's bad write affects all others | Events are immutable; a failing step cannot corrupt the next step's input |
+| **Schema enforcement** | Optional (TypedDict helps but doesn't prevent runtime misuse) | Enforced by Pydantic event types at each boundary |
+| **Concurrency** | Supported via `send()` API but requires explicit fan-out wiring | Native: multiple steps listening for the same event type run in parallel automatically |
+
+For this pipeline, the key reasons were:
+
+1. **The BKT → Diagnose → Recommend sequence is strictly linear with well-defined data contracts between steps.** LlamaIndex's event types make those contracts explicit and checked at runtime — a mismatched field raises an error immediately rather than silently producing wrong output.
+
+2. **The recommendation step fans out across all skills concurrently.** LlamaIndex handles this natively with `asyncio.gather` inside a single step; in LangGraph it would require a `send()` fan-out pattern and a corresponding join edge, which adds graph complexity.
+
+3. **Less framework coupling.** LangGraph pipelines tend to be tightly bound to the framework's state machine. LlamaIndex steps are just async methods on a class — they can be called, tested, and reasoned about without running the full workflow engine.
 
 ---
 
@@ -86,63 +169,109 @@ Student Interaction History (skill_id, correct) × T timesteps
 
 | Layer | Technology |
 |---|---|
-| Orchestration | LangGraph |
+| Orchestration | LlamaIndex Workflows |
 | Diagnostic Model | PyTorch (custom BKTransformer) |
-| LLM | OpenAI GPT-4o-mini |
+| LLM | OpenAI GPT-4o-mini (or self-hosted via vLLM) |
 | Knowledge Graph | Neo4j Aura |
-| Graph Access | Google GenAI Toolbox (MCP) |
 | Observability | Langfuse |
+| Services | FastAPI + uvicorn |
+| Deployment | Docker Compose (local) · Kubernetes (production) |
 
 ---
 
 ## Project Structure
 
 ```
-src/
+src/ai_tutor/
 ├── agents/
-│   ├── graph.py              # LangGraph StateGraph definition
-│   ├── state.py              # AgentState TypedDict
+│   ├── graph.py              # LlamaIndex TutorWorkflow definition
+│   ├── state.py              # AgentState TypedDict + event types
+│   ├── schemas.py            # Pydantic models (BKTTimestep, AnalysisRecord, FeedbackRecord)
 │   ├── diagnosis_node.py     # BKT inference + LLM proficiency diagnosis
 │   └── recommendation_node.py# GraphRAG + LLM feedback generation
 ├── bkt/
-│   └── model.py              # BKTransformer (RoPE, SwiGLU)
+│   ├── model.py              # BKTransformer (RoPE, SwiGLU)
+│   └── config.py             # BKT hyperparameters
 ├── tools/
-│   └── neo4j_tool.py         # MCP toolbox client wrapper
-└── run.py                    # CLI entry point
+│   └── neo4j_tool.py         # HTTP client to neo4j-service
+├── llm_client.py             # LLM backend factory (openai | vllm)
+└── api.py                    # FastAPI orchestrator entry point
 
-tools.yaml                    # Predefined Cypher queries (MCP tool definitions)
+services/
+├── bkt_service.py            # BKTransformer inference microservice (port 8001)
+├── Dockerfile.bkt
+├── neo4j_service.py          # Neo4j Cypher query microservice (port 8002)
+└── Dockerfile.neo4j_svc
+
+k8s/
+├── namespace.yaml
+├── configmap.yaml
+├── secret.yaml.template
+├── orchestrator-api/         # deployment.yaml + service.yaml
+├── bkt-service/              # deployment.yaml + service.yaml
+├── neo4j-service/            # deployment.yaml + service.yaml
+└── vllm-service/             # deployment.yaml + service.yaml (GPU nodeSelector)
 ```
 
 ---
 
-## How to Run Locally
+## How to Run
 
-1. Clone the repository and install dependencies:
+### Local — Docker Compose
+
+1. Copy and fill in credentials:
    ```bash
-   pip install -r requirements.txt
+   cp .env.example .env
+   # edit .env with your API keys and Neo4j connection details
    ```
 
-2. Create a `.env` file with your credentials:
-   ```
-   OPENAI_API_KEY=...
-   LANGFUSE_HOST=...
-   LANGFUSE_PUBLIC_KEY=...
-   LANGFUSE_SECRET_KEY=...
-   NEO4J_URI=...
-   NEO4J_USERNAME=...
-   NEO4J_PASSWORD=...
-   TOOLBOX_URL=http://localhost:5001
-   ```
-
-3. Start the Google GenAI Toolbox server:
+2. Start all services (OpenAI backend):
    ```bash
-   toolbox --tools-file tools.yaml --port 5001
+   LLM_BACKEND=openai LLM_MODEL=gpt-4o-mini docker compose up --build
    ```
 
-4. Run the pipeline:
+3. Start with local vLLM instead (requires NVIDIA GPU):
    ```bash
-   python src/run.py
+   LLM_BACKEND=vllm LLM_MODEL=Qwen/Qwen2.5-7B-Instruct \
+     docker compose --profile vllm up --build
    ```
+
+4. Call the API:
+   ```bash
+   curl -X POST localhost:8000/tutor \
+     -H "Content-Type: application/json" \
+     -d '{"student_id": "s1", "sequence": [[1,1],[2,0],[1,1]], "skill_id_to_name": {"1": "순환소수", "2": "유리수"}}'
+   ```
+
+### Kubernetes
+
+```bash
+# Apply base config
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+
+# Fill in k8s/secret.yaml.template → k8s/secret.yaml, then:
+kubectl apply -f k8s/secret.yaml
+
+# Deploy services
+kubectl apply -f k8s/bkt-service/
+kubectl apply -f k8s/neo4j-service/
+kubectl apply -f k8s/orchestrator-api/
+
+# vLLM only on GPU nodes:
+kubectl apply -f k8s/vllm-service/
+
+# Verify
+kubectl -n ai-tutor get pods
+kubectl -n ai-tutor port-forward svc/orchestrator-api 8000:80
+curl localhost:8000/health
+```
+
+Switch LLM backend without rebuilding:
+```bash
+kubectl -n ai-tutor set env deploy/orchestrator-api \
+  LLM_BACKEND=vllm LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+```
 
 ---
 
@@ -153,26 +282,25 @@ All pipeline runs are traced in Langfuse with the following span hierarchy:
 ```
 tutor_pipeline  [trace]
   ├── run_bkt      — BKT parameters per timestep
-  ├── diagnose     — LLM generation: diagnosis in natural language, proficiency
+  ├── diagnose     — LLM generation: proficiency level + reasoning per skill
   └── recommend    — LLM generation per skill: graph context + feedback
 ```
 
-**1. LangGraph Orchestration Pipeline**
-- Execution time per node, span hierarchy, and token cost
+Note: Langfuse tracing is active only when `LLM_BACKEND=openai`. The vLLM path uses the raw OpenAI-compatible client without a Langfuse wrapper.
+
+**1. Pipeline Trace**
 ![Pipeline Trace](./assets/trace-tree.png)
 
 **2. BKT Parameter-Based Proficiency Diagnosis**
-- The LLM diagnosing proficiency (High / Mid / Low) using BKT parameter values as logical evidence — not raw correct/incorrect answers
-**[BKT Parameters as Input]**
+
+[BKT Parameters as Input]
 ![Diagnosis Node Input](./assets/diagnose-input.png)
 
-**[Agent's diagnosis as Output]**
+[Agent's Diagnosis as Output]
 ![Diagnosis Node](./assets/diagnose-output.png)
-
 
 **3. Agentic GraphRAG Personalized Feedback Generation**
 ![Recommendation Node](./assets/recommend.png)
-*(Retrieving related concepts from the knowledge graph based on the diagnosed proficiency, then generating the final personalized feedback)*
 
 ---
 

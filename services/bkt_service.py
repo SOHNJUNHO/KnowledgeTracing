@@ -41,6 +41,11 @@ async def lifespan(app: FastAPI):
     state_dict = checkpoint.get("state_dict", checkpoint)
     m.load_state_dict(state_dict)
     m.eval()
+    # Dynamic quantization: Linear weights float32 → int8
+    # ~4x smaller in memory, 2–4x faster CPU inference
+    m = torch.quantization.quantize_dynamic(m, {torch.nn.Linear}, dtype=torch.qint8)
+    # torch.compile: additional ~1.5–2x speedup (test separately — can conflict with quantization)
+    # m = torch.compile(m)
     _model = m
     print(f"[bkt-service] BKTransformer loaded from {CHECKPOINT_PATH}")
     yield
@@ -76,14 +81,15 @@ async def infer(req: InferRequest):
 
     obs    = torch.tensor(req.obs,    dtype=torch.float32)
     output = torch.tensor(req.output, dtype=torch.float32)
+    T = obs.shape[1]
 
     with torch.no_grad():
         corrects, latents, params = _model.infer(obs, output)
 
     return InferResponse(
-        corrects=corrects.tolist(),
-        latents=[lat[0].tolist() for lat in latents],  # strip batch dim per timestep
-        params=params[0].tolist(),                      # strip batch dim → (T, n_skills, 4)
+        corrects=corrects[0, :T, 0].tolist(),   # (T,) — predicted correctness per timestep
+        latents=latents[0, :T].tolist(),         # (T, n_skills) — knowledge state per timestep
+        params=params[0, :T].tolist(),           # (T, n_skills, 4) — BKT params per timestep
     )
 
 

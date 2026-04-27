@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bkt-service
+  namespace: ai-tutor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bkt-service
+  template:
+    metadata:
+      labels:
+        app: bkt-service
+    spec:
+      containers:
+        - name: bkt-service
+          image: your-registry/bkt-service:latest
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: ai-tutor-config
+            - secretRef:
+                name: ai-tutor-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 15

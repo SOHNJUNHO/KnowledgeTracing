@@ -2,9 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Only install what the BKT service actually needs — keeps the image small
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir fastapi "uvicorn[standard]" torchtune
+COPY requirements/bkt.txt requirements/bkt.txt
+RUN pip install --no-cache-dir -r requirements/bkt.txt
 
 # Install the ai_tutor package (for bkt.config and bkt.model)
 COPY src/ ./src/

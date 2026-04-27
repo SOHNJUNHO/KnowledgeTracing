@@ -1,0 +1,66 @@
+steps:
+  # ── Build orchestrator ──────────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/orchestrator:$COMMIT_SHA
+      - -f
+      - Dockerfile
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/orchestrator:$COMMIT_SHA
+
+  # ── Build bkt-service ───────────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/bkt-service:$COMMIT_SHA
+      - -f
+      - services/Dockerfile.bkt
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/bkt-service:$COMMIT_SHA
+
+  # ── Deploy orchestrator ─────────────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - orchestrator
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/orchestrator:$COMMIT_SHA
+      - --region=${_REGION}
+      - --memory=512Mi
+      - --concurrency=10
+      - --min-instances=0
+      - --set-env-vars=LLM_BACKEND=openai,LLM_MODEL=gpt-4o-mini
+      - --set-secrets=OPENAI_API_KEY=openai-api-key:latest,LANGFUSE_PUBLIC_KEY=langfuse-public-key:latest,LANGFUSE_SECRET_KEY=langfuse-secret-key:latest,NEO4J_URI=neo4j-uri:latest,NEO4J_USERNAME=neo4j-username:latest,NEO4J_PASSWORD=neo4j-password:latest
+
+  # ── Deploy bkt-service ──────────────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - bkt-service
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/bkt-service:$COMMIT_SHA
+      - --region=${_REGION}
+      - --memory=2Gi
+      - --concurrency=1
+      - --min-instances=0
+      - --no-allow-unauthenticated
+
+substitutions:
+  _REGION: asia-northeast3
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/orchestrator:$COMMIT_SHA
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/bkt-service:$COMMIT_SHA
