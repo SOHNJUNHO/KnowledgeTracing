@@ -91,7 +91,10 @@ The recommendation agent does not decide which Cypher query to run. The proficie
 **3. LLM Backend Toggle**
 `LLM_BACKEND=openai` routes calls to the OpenAI API (with Langfuse tracing). `LLM_BACKEND=vllm` routes to a local vLLM server with no external dependency. Switching requires no code change — only a config update.
 
-**4. Langfuse for Full Observability**
+**4. PyTorch over ONNX Runtime for BKT Inference**
+ONNX Runtime was evaluated as an alternative to PyTorch for the BKT service. The transformer encoder (`_encode`) is well-suited to ONNX — it is a parallel tensor computation with a static graph. However, `_run_bkt_loop` iterates `range(block_size)` sequentially, where each step depends on the latent state from the previous step. ONNX tracing unrolls this loop entirely into the static graph, producing one copy of every BKT operation per timestep. With `block_size=818`, this generates an unmanageably large graph (minutes to export, multi-GB model file) with no inference speedup, because the bottleneck is the sequential dependency — not the per-step compute. PyTorch runs the loop dynamically and is therefore faster and lighter for this architecture. `torch.quantization.quantize_dynamic` is applied at startup to compress Linear weights to int8, giving meaningful speedup without the ONNX tradeoffs.
+
+**5. Langfuse for Full Observability**
 Every pipeline run is traced end-to-end: BKT output, LLM prompts/responses, graph context, and final feedback. This supports human expert evaluation and iterative prompt improvement.
 
 ---
@@ -174,7 +177,7 @@ For this pipeline, the key reasons were:
 | Knowledge Graph | Neo4j Aura |
 | Observability | Langfuse |
 | Services | FastAPI + uvicorn |
-| Deployment | Docker Compose (local) · Kubernetes (production) |
+| Deployment | Docker Compose (local) · Cloud Run (production) |
 
 ---
 
@@ -201,15 +204,6 @@ services/
 ├── Dockerfile.bkt
 ├── neo4j_service.py          # Legacy Neo4j Cypher microservice (not used by current app path)
 └── Dockerfile.neo4j_svc
-
-k8s/
-├── namespace.yaml
-├── configmap.yaml
-├── secret.yaml.template
-├── orchestrator-api/         # deployment.yaml + service.yaml
-├── bkt-service/              # deployment.yaml + service.yaml
-├── neo4j-service/            # deployment.yaml + service.yaml
-└── vllm-service/             # deployment.yaml + service.yaml (GPU nodeSelector)
 ```
 
 ---
@@ -241,35 +235,6 @@ k8s/
      -H "Content-Type: application/json" \
      -d '{"student_id": "s1", "sequence": [[1,1],[2,0],[1,1]], "skill_id_to_name": {"1": "순환소수", "2": "유리수"}}'
    ```
-
-### Kubernetes
-
-```bash
-# Apply base config
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml
-
-# Fill in k8s/secret.yaml.template → k8s/secret.yaml, then:
-kubectl apply -f k8s/secret.yaml
-
-# Deploy services
-kubectl apply -f k8s/bkt-service/
-kubectl apply -f k8s/orchestrator-api/
-
-# vLLM only on GPU nodes:
-kubectl apply -f k8s/vllm-service/
-
-# Verify
-kubectl -n ai-tutor get pods
-kubectl -n ai-tutor port-forward svc/orchestrator-api 8000:80
-curl localhost:8000/health
-```
-
-Switch LLM backend without rebuilding:
-```bash
-kubectl -n ai-tutor set env deploy/orchestrator-api \
-  LLM_BACKEND=vllm LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-```
 
 ---
 
