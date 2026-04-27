@@ -28,35 +28,35 @@ LLM은 강력한 피드백 생성기이지만, 교육 환경에서 세 가지 �
 ## 아키텍처
 
 ```
-학생 학습 이력 (skill_id, correct) × T 타임스텝
+학생 학습 이력 (skill_id, correct) x T timesteps
                         │
                         ▼
-         ┌──────────────────────────┐
-         │   BKTransformer (PyTorch)│
-         │       RoPE · SwiGLU      │
-         └──────────────────────────┘
+         ┌────────────────────────────┐
+         │   BKTransformer (PyTorch)  │
+         │       RoPE  ·  SwiGLU      │
+         └──────────────┬─────────────┘
                         │
-          스킬별 BKT 파라미터:
-          P(know), P(learn), P(guess), P(slip)
-                        │
-                        ▼
-         ┌──────────────────────────┐
-         │        진단 에이전트         │
-         │       (GPT-4o-mini)      │
-         └──────────────────────────┘
-                        │
-              숙련도 레벨 (상 / 중 / 하)
+         Per-skill BKT parameters:
+         P(know), P(learn), P(guess), P(slip)
                         │
                         ▼
-         ┌──────────────────────────┐
-         │        추천 에이전트         │
-         │       (GPT-4o-mini)      │
-         │    Neo4j GraphRAG        │
-         │   사전 정의된 Cypher 쿼리    │
-         └──────────────────────────┘
+         ┌────────────────────────────┐
+         │      Diagnosis Agent       │
+         │       (GPT-4o-mini)        │
+         └──────────────┬─────────────┘
+                        │
+         Proficiency level: 상 / 중 / 하
                         │
                         ▼
-             개인화된 학습 피드백
+         ┌────────────────────────────┐
+         │    Recommendation Agent    │
+         │       (GPT-4o-mini)        │
+         │      Neo4j  GraphRAG       │
+         │   Predefined Cypher Query  │
+         └────────────────────────────┘
+                        │
+                        ▼
+           Personalized study feedback
 ```
 
 **LangGraph 흐름:** `START → run_bkt → diagnose → recommend → END`
@@ -189,12 +189,13 @@ src/
   ┌─────────────────────────────────────────┐
   │              orchestrator               │
   │      FastAPI + LangGraph  |  512Mi      │
-  └────────────────┬────────────────────────┘
-                   │ POST /infer (BKT_SERVICE_URL)
-                   ▼
+  └────────────────────┬────────────────────┘
+                       │ POST /infer
+                       │ (BKT_SERVICE_URL)
+                       ▼
   ┌─────────────────────────────────────────┐
   │               bkt-service               │
-  │      BKTransformer (PyTorch)  |  2Gi    │
+  │     BKTransformer (PyTorch)  |  2Gi     │
   └─────────────────────────────────────────┘
 ```
 
@@ -204,7 +205,7 @@ Cloud Run을 선택한 이유는 요청이 없을 때 인스턴스가 0으로 �
 
 ---
 
-## 관찰 가능성/Observability
+## 관찰 가능성
 
 모든 파이프라인 실행은 Langfuse에서 다음 계층 구조로 추적됩니다.
 
@@ -215,13 +216,22 @@ tutor_pipeline  [trace]
   └── recommend    — 스킬별 LLM 생성: 그래프 컨텍스트 + 피드백
 ```
 
-**1. BKT 모델 진단**
+**1. LangGraph 오케스트레이션 파이프라인**
+- 노드별 실행 시간, 스팬 계층, 토큰 비용
+![Pipeline Trace](./assets/trace-tree.png)
 
-![BKT 모델 진단](./assets/bkt.png)
+**2. BKT 파라미터 기반 숙련도 진단**
+- LLM이 정답/오답 이진값이 아닌 BKT 파라미터 수치를 논리적 근거로 숙련도를 판단
 
-**2. BKT 진단 결과**
+**[진단 입력: BKT 파라미터]**
+![Diagnosis Node Input](./assets/diagnose-input.png)
 
-![BKT 진단 결과](./assets/diagnosis.png)
+**[진단 출력: 에이전트 분석]**
+![Diagnosis Node](./assets/diagnose-output.png)
+
+**3. Agentic GraphRAG 개인화 피드백 생성**
+![Recommendation Node](./assets/recommend.png)
+*(진단된 숙련도를 기반으로 지식 그래프에서 관련 개념을 조회한 뒤, 최종 개인화 피드백 생성)*
 
 ---
 
