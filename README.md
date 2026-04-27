@@ -216,10 +216,12 @@ tutor_pipeline  [trace]
 ```
 
 **1. BKT 모델 진단**
-(./assets/bkt.png)
+
+![BKT 모델 진단](./assets/bkt.png)
 
 **2. BKT 진단 결과**
-(./assets/diagnosis.png)
+
+![BKT 진단 결과](./assets/diagnosis.png)
 
 ---
 
