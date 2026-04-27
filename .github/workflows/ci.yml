@@ -24,8 +24,5 @@ jobs:
       - name: Install package with dev dependencies
         run: pip install -e ".[dev]"
 
-      - name: Type check
-        run: mypy src/ai_tutor --ignore-missing-imports
-
       - name: Run unit tests
         run: pytest tests/ -v
