@@ -37,8 +37,10 @@ def _get_run_tutor():
 
 def serve() -> None:
     """Entry point for `ai-tutor-api` CLI command."""
+    import os
     import uvicorn
-    uvicorn.run("ai_tutor.api:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run("ai_tutor.api:app", host="0.0.0.0", port=port, reload=False)
 
 
 # ---------------------------------------------------------------------------

@@ -29,22 +29,7 @@ steps:
       - push
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/bkt-service:$COMMIT_SHA
 
-  # ── Deploy orchestrator ─────────────────────────────────────────────────────
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
-    args:
-      - run
-      - deploy
-      - orchestrator
-      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/orchestrator:$COMMIT_SHA
-      - --region=${_REGION}
-      - --memory=512Mi
-      - --concurrency=10
-      - --min-instances=0
-      - --set-env-vars=LLM_BACKEND=openai,LLM_MODEL=gpt-4o-mini
-      - --set-secrets=OPENAI_API_KEY=openai-api-key:latest,LANGFUSE_PUBLIC_KEY=langfuse-public-key:latest,LANGFUSE_SECRET_KEY=langfuse-secret-key:latest,NEO4J_URI=neo4j-uri:latest,NEO4J_USERNAME=neo4j-username:latest,NEO4J_PASSWORD=neo4j-password:latest
-
-  # ── Deploy bkt-service ──────────────────────────────────────────────────────
+  # ── Deploy bkt-service first (orchestrator needs its URL) ───────────────────
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -56,7 +41,34 @@ steps:
       - --memory=2Gi
       - --concurrency=1
       - --min-instances=0
-      - --no-allow-unauthenticated
+      - --allow-unauthenticated
+
+  # ── Capture bkt-service URL ─────────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud run services describe bkt-service \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/bkt_url.txt
+
+  # ── Deploy orchestrator with bkt-service URL injected ──────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        BKT_URL=$(cat /workspace/bkt_url.txt)
+        gcloud run deploy orchestrator \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/ai-tutor/orchestrator:$COMMIT_SHA \
+          --region=${_REGION} \
+          --memory=512Mi \
+          --concurrency=10 \
+          --min-instances=0 \
+          --allow-unauthenticated \
+          --set-env-vars="LLM_BACKEND=openai,LLM_MODEL=gpt-4o-mini,BKT_SERVICE_URL=$$BKT_URL" \
+          --set-secrets=OPENAI_API_KEY=openai-api-key:latest,LANGFUSE_PUBLIC_KEY=langfuse-public-key:latest,LANGFUSE_SECRET_KEY=langfuse-secret-key:latest,NEO4J_URI=neo4j-uri:latest,NEO4J_USERNAME=neo4j-username:latest,NEO4J_PASSWORD=neo4j-password:latest
 
 substitutions:
   _REGION: asia-northeast3

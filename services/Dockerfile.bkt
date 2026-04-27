@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements/bkt.txt
 
 # Install the ai_tutor package (for bkt.config and bkt.model)
 COPY src/ ./src/
-COPY setup.py pyproject.toml ./
+COPY pyproject.toml ./
 RUN pip install --no-cache-dir -e . --no-deps
 
 # Copy the service entrypoint
