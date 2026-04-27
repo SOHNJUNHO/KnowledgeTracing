@@ -195,9 +195,7 @@ src/ai_tutor/
 
 services/
 ├── bkt_service.py            # BKTransformer inference microservice (port 8001)
-├── Dockerfile.bkt
-├── neo4j_service.py          # Legacy Neo4j Cypher microservice (not used by current app path)
-└── Dockerfile.neo4j_svc
+└── Dockerfile.bkt
 ```
 
 ---

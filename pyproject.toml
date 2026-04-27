@@ -29,16 +29,10 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.14",
-    "mypy>=1.10",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
