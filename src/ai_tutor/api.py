@@ -11,9 +11,9 @@ Run locally:
 Environment variables: same as the CLI (see .env.example).
 """
 
-import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import torch
 
 from ai_tutor.agents.graph import run_tutor
 
