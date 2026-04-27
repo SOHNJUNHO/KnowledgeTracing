@@ -24,6 +24,7 @@ app = FastAPI(title="AI Tutor API", version="1.0.0")
 def serve() -> None:
     """Entry point for `ai-tutor-api` CLI command."""
     import os
+
     import uvicorn
     port = int(os.environ.get("PORT", "8000"))
     uvicorn.run("ai_tutor.api:app", host="0.0.0.0", port=port, reload=False)
