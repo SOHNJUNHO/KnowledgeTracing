@@ -125,8 +125,7 @@ def _mock_langfuse_prompt(mocker, compiled_text: str = "mocked prompt"):
 async def test_recommend_node_returns_feedback_for_all_skills(mocker):
     _mock_langfuse_prompt(mocker)
 
-    mock_tool = MagicMock()
-    mock_tool.invoke.return_value = json.dumps([GRAPH_CONTEXT])
+    mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
     mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
 
     llm_payload = json.dumps({"reasoning": "분석 요약", "feedback": "학습 추천 내용"})
@@ -146,8 +145,7 @@ async def test_recommend_node_returns_feedback_for_all_skills(mocker):
 async def test_recommend_node_calls_llm_once_per_skill(mocker):
     _mock_langfuse_prompt(mocker)
 
-    mock_tool = MagicMock()
-    mock_tool.invoke.return_value = json.dumps([GRAPH_CONTEXT])
+    mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
     mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
 
     llm_payload = json.dumps({"reasoning": "r", "feedback": "f"})
@@ -169,8 +167,7 @@ async def test_recommend_node_skips_invalid_llm_output(mocker):
     """A ValidationError on one skill must not crash the whole pipeline."""
     _mock_langfuse_prompt(mocker)
 
-    mock_tool = MagicMock()
-    mock_tool.invoke.return_value = json.dumps([GRAPH_CONTEXT])
+    mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
     mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
 
     # Empty feedback string fails FeedbackRecord validation (min_length=1)
