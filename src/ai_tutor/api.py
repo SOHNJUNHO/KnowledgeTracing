@@ -10,13 +10,29 @@ Run locally:
 Environment variables: same as the CLI (see .env.example).
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from ai_tutor.agents.graph import run_tutor
+from ai_tutor.tools.neo4j_tool import close_driver
 
 
-app = FastAPI(title="AI Tutor API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await close_driver()
+
+
+app = FastAPI(title="AI Tutor API", version="1.0.0", lifespan=lifespan)
+
+
+def _get_run_tutor():
+    # Import lazily so helper/unit tests can import this module without the
+    # full workflow stack installed.
+    from ai_tutor.agents.graph import run_tutor
+
+    return run_tutor
 
 
 def serve() -> None:
@@ -81,5 +97,5 @@ async def tutor(req: TutorRequest) -> TutorResponse:
         "feedback":  [],
     }
 
-    result = await run_tutor(state)
+    result = await _get_run_tutor()(state)
     return TutorResponse(student_id=req.student_id, feedback=result.get("feedback", []))

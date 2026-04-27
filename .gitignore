@@ -56,4 +56,11 @@ env/
 venv/
 ENV/
 env.bak/
-venv.bak/k8s/secret.yaml
+venv.bak/
+k8s/secret.yaml
+
+# Dataset files (large CSVs tracked outside git)
+data/
+
+# ONNX model artifacts
+*.onnx

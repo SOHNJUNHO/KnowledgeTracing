@@ -6,6 +6,19 @@ build-backend = "setuptools.build_meta"
 name = "ai-tutor"
 version = "0.1.0"
 requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "httpx==0.28.1",
+    "langfuse==2.60.10",
+    "llama-index-core",
+    "neo4j==6.1.0",
+    "openai==2.26.0",
+    "pydantic==2.12.5",
+    "python-dotenv==1.2.2",
+    "tenacity==9.1.4",
+    "typer==0.24.1",
+    "uvicorn[standard]",
+]
 
 [project.scripts]
 ai-tutor = "ai_tutor.main:cli"

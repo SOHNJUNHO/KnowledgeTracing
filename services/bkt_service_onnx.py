@@ -20,8 +20,10 @@ import onnxruntime as ort
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from ai_tutor.bkt.config import BKTConfig
+
 MODEL_PATH = os.environ.get("ONNX_MODEL_PATH", "model.onnx")
-S          = 189   # must match block_size used during export
+S          = BKTConfig().block_size
 
 _session: ort.InferenceSession | None = None
 
@@ -53,6 +55,11 @@ async def infer(req: InferRequest):
     T      = obs.shape[1]  # actual sequence length before padding
 
     # ONNX model requires fixed sequence length S — pad shorter inputs
+    if T > S:
+        raise HTTPException(
+            status_code=422,
+            detail=f"sequence length {T} exceeds ONNX block_size {S}",
+        )
     if T < S:
         obs    = np.pad(obs,    ((0, 0), (0, S - T), (0, 0)))
         output = np.pad(output, ((0, 0), (0, S - T), (0, 0)), constant_values=-1000)

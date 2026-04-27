@@ -119,6 +119,7 @@ def _mock_langfuse_prompt(mocker, compiled_text: str = "mocked prompt"):
     mock_lf = MagicMock()
     mock_lf.get_prompt.return_value = mock_prompt
     mocker.patch("ai_tutor.agents.recommendation_node._get_langfuse", return_value=mock_lf)
+    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_model", return_value="test-model")
 
 
 @pytest.mark.asyncio

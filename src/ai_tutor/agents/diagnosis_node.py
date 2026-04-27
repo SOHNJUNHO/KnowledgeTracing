@@ -1,5 +1,5 @@
 """
-Diagnosis pipeline: two LangGraph nodes.
+Diagnosis pipeline: two workflow steps.
 
   run_bkt_node  — calls the separate BKTransformer inference service via HTTP,
                   receives per-skill BKT parameters, builds timestep records.
@@ -86,7 +86,6 @@ async def run_bkt_node(state: AgentState) -> dict:
     params = result["params"]          # [[...]] — per timestep, per skill, 4 values
 
     T = len(latents)
-    n_skills = len(latents[0])
     diagnosis: dict = {}
 
     for t in range(T):

@@ -19,13 +19,13 @@ OUTPUT     = "model.onnx"
 
 
 def main() -> None:
-    config = BKTConfig()   # block_size=189
+    config = BKTConfig()
     model  = BKTransformer(config)
     ckpt   = torch.load(CHECKPOINT, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt.get("state_dict", ckpt))
     model.eval()
 
-    S     = config.block_size  # 189
+    S     = config.block_size
     dummy = torch.zeros(1, S, 2)
 
     # Wrap infer() so ONNX traces the inference path only.

@@ -117,7 +117,7 @@ class BKTransformer(nn.Module):
     def _run_bkt_loop(self, obs, output, params, logits):
         """Iterate the BKT update rule over block_size timesteps (padded to fixed length)."""
         B, T, _ = obs.shape
-        S = self.config.block_size  # 189 — constant loop count, ONNX-traceable
+        S = self.config.block_size  # constant loop count, ONNX-traceable
 
         # Pad inputs to fixed length so range(S) is a Python constant at ONNX export time.
         # Causal attention in _encode means params at real timesteps (0..T-1) are unaffected

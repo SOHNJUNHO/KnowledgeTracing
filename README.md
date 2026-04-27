@@ -47,7 +47,7 @@ Student Interaction History (skill_id, correct) × T timesteps
                         │
                         ▼
          ┌──────────────────────────┐
-         │   Recommendation Agent   │  ← LLM + neo4j-service (port 8002)
+         │   Recommendation Agent   │  ← LLM + direct Neo4j access
          │   (OpenAI / vLLM)        │
          │   Neo4j GraphRAG         │
          │   Predefined Cypher Query│
@@ -68,16 +68,15 @@ Student Interaction History (skill_id, correct) × T timesteps
 
 ### Microservices
 
-The system is split into four independent services, each with its own Dockerfile and Kubernetes manifests:
+The current runtime is split into three primary services, plus an optional local LLM server:
 
 ```
 orchestrator-api   src/ai_tutor/api.py          port 8000   FastAPI — drives the tutor workflow
 bkt-service        services/bkt_service.py       port 8001   BKTransformer inference (PyTorch)
-neo4j-service      services/neo4j_service.py     port 8002   Neo4j Cypher query wrapper
 vllm-service       vllm/vllm-openai (image)      port 8080   Local LLM serving (opt-in, GPU)
 ```
 
-Services communicate over HTTP. The orchestrator never touches Neo4j or the BKT model directly — it calls the relevant service and moves on.
+Services communicate over HTTP where appropriate. The orchestrator calls the BKT service over HTTP and connects to Neo4j directly via the official async driver.
 
 ---
 
@@ -193,14 +192,14 @@ src/ai_tutor/
 │   ├── model.py              # BKTransformer (RoPE, SwiGLU)
 │   └── config.py             # BKT hyperparameters
 ├── tools/
-│   └── neo4j_tool.py         # HTTP client to neo4j-service
+│   └── neo4j_tool.py         # Direct Neo4j query wrapper
 ├── llm_client.py             # LLM backend factory (openai | vllm)
 └── api.py                    # FastAPI orchestrator entry point
 
 services/
 ├── bkt_service.py            # BKTransformer inference microservice (port 8001)
 ├── Dockerfile.bkt
-├── neo4j_service.py          # Neo4j Cypher query microservice (port 8002)
+├── neo4j_service.py          # Legacy Neo4j Cypher microservice (not used by current app path)
 └── Dockerfile.neo4j_svc
 
 k8s/
@@ -255,7 +254,6 @@ kubectl apply -f k8s/secret.yaml
 
 # Deploy services
 kubectl apply -f k8s/bkt-service/
-kubectl apply -f k8s/neo4j-service/
 kubectl apply -f k8s/orchestrator-api/
 
 # vLLM only on GPU nodes:

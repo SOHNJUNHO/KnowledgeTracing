@@ -15,5 +15,5 @@ class BKTConfig:
     n_embd: int = 256
     n_layer: int = 3
     n_head: int = 4
-    block_size: int = 189
+    block_size: int = 818     # longest student interaction sequence in data/icecream_8th_processed.csv
     dropout: float = 0.1

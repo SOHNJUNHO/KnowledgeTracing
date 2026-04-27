@@ -4,31 +4,31 @@ from dotenv import load_dotenv
 # Load environment variables before any package imports that read them
 load_dotenv()
 
-import torch
 from langfuse import Langfuse
-from ai_tutor.agents.graph import run_tutor
 
 
 async def main() -> None:
+    from ai_tutor.agents.graph import run_tutor
+
     print("Agentic GraphRAG Tutor Initialized.")
 
     # Mock student interaction history — replace with real DB lookup in production
-    mock_obs = torch.tensor([[[21.,  0.],
-                               [22.,  0.],
-                               [21.,  0.],
-                               [17.,  1.],
-                               [19.,  1.],
-                               [18.,  1.],
-                               [16.,  0.],
-                               [17.,  1.]]])
-    mock_output = torch.tensor([[[22.,  0.],
-                                  [21.,  0.],
-                                  [17.,  1.],
-                                  [19.,  1.],
-                                  [18.,  1.],
-                                  [16.,  0.],
-                                  [17.,  1.],
-                                  [19.,  0.]]])
+    mock_obs = [[[21.0, 0.0],
+                 [22.0, 0.0],
+                 [21.0, 0.0],
+                 [17.0, 1.0],
+                 [19.0, 1.0],
+                 [18.0, 1.0],
+                 [16.0, 0.0],
+                 [17.0, 1.0]]]
+    mock_output = [[[22.0, 0.0],
+                    [21.0, 0.0],
+                    [17.0, 1.0],
+                    [19.0, 1.0],
+                    [18.0, 1.0],
+                    [16.0, 0.0],
+                    [17.0, 1.0],
+                    [19.0, 0.0]]]
 
     state = {
         "student_id": "test_student_01",

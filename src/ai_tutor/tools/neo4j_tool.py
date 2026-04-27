@@ -1,7 +1,7 @@
 import os
 from typing import Any
 
-from neo4j import AsyncGraphDatabase
+from neo4j import AsyncDriver, AsyncGraphDatabase
 
 _NEO4J_URI      = os.environ.get("NEO4J_URI", "")
 _NEO4J_USER     = os.environ.get("NEO4J_USERNAME", "")
@@ -54,6 +54,24 @@ _TOOL_TO_QUERY: dict[str, str] = {
     "get_advanced_concepts": _GET_ADVANCED_CONCEPTS,
 }
 
+_driver: AsyncDriver | None = None
+
+
+def _get_driver() -> AsyncDriver:
+    global _driver
+    if _driver is None:
+        _driver = AsyncGraphDatabase.driver(
+            _NEO4J_URI, auth=(_NEO4J_USER, _NEO4J_PASSWORD)
+        )
+    return _driver
+
+
+async def close_driver() -> None:
+    global _driver
+    if _driver is not None:
+        await _driver.close()
+        _driver = None
+
 
 class _Tool:
     def __init__(self, name: str, query: str) -> None:
@@ -61,13 +79,9 @@ class _Tool:
         self._query = query
 
     async def __call__(self, **kwargs: Any) -> list[dict]:
-        driver = AsyncGraphDatabase.driver(
-            _NEO4J_URI, auth=(_NEO4J_USER, _NEO4J_PASSWORD)
-        )
-        async with driver.session() as session:
+        async with _get_driver().session() as session:
             result = await session.run(self._query, skill_id=kwargs["skill_id"])
             records = await result.data()
-        await driver.close()
         return records
 
 

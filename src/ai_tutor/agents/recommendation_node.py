@@ -1,5 +1,5 @@
 """
-Recommendation pipeline: one LangGraph node.
+Recommendation pipeline: one workflow step.
 
   recommend_node — for each skill in the diagnosis, deterministically selects
                    the appropriate Neo4j Cypher tool based on proficiency level
@@ -58,8 +58,8 @@ def _get_langfuse() -> Langfuse:
 def _build_next_skills_section(level: str, graph_context: dict | None) -> str:
     """Build the prerequisite / advanced-concept block for the feedback prompt.
 
-    Returns an empty string when there is nothing to show (no graph context,
-    no named next skills, or medium proficiency which has neither).
+    Returns an empty string when there is nothing to show (no graph context
+    or no named next skills).
     """
     if not graph_context:
         return ""
@@ -179,7 +179,7 @@ async def _process_skill(client: object, kc_data: dict) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# LangGraph node
+# Workflow step implementation
 # ---------------------------------------------------------------------------
 
 @observe(name="recommend")
