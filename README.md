@@ -216,26 +216,13 @@ tutor_pipeline  [trace]
   └── recommend    — 스킬별 LLM 생성: 그래프 컨텍스트 + 피드백
 ```
 
-**1. LangGraph 오케스트레이션 파이프라인**
-- 노드별 실행 시간, 스팬 계층, 토큰 비용
-![Pipeline Trace](./assets/trace-tree.png)
 
-**2. BKT 추론 결과 (run_bkt)**
+**[BKT 추론 결과 (run_bkt)]**
 - 타임스텝별 스킬 파라미터: P(know), P(learn), P(guess), P(slip), P(correct)
 ![BKT Output](./assets/bkt.png)
 
-**3. 숙련도 진단 (diagnose)**
-- LLM이 정답/오답 이진값이 아닌 BKT 파라미터 수치를 논리적 근거로 숙련도를 판단
-
-**[진단 입력: BKT 파라미터]**
-![Diagnosis Node Input](./assets/diagnose-input.png)
-
 **[진단 출력: 에이전트 분석]**
 ![Diagnosis Node Output](./assets/diagnose.png)
-
-**4. Agentic GraphRAG 개인화 피드백 생성 (recommend)**
-![Recommendation Node](./assets/recommend.png)
-*(진단된 숙련도를 기반으로 지식 그래프에서 관련 개념을 조회한 뒤, 최종 개인화 피드백 생성)*
 
 ---
 
