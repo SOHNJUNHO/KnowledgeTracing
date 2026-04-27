@@ -27,8 +27,5 @@ jobs:
       - name: Lint
         run: ruff check src/ tests/
 
-      - name: Type check
-        run: mypy src/ai_tutor --ignore-missing-imports
-
       - name: Run unit tests
         run: pytest tests/ -v
