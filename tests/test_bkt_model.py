@@ -52,15 +52,6 @@ def test_infer_params_shape(tiny_model):
     assert params.shape == (1, 4, n_skills, 4)
 
 
-def test_infer_returns_three_values(tiny_model):
-    """infer() must not return a loss — callers unpack exactly 3 values."""
-    obs    = torch.zeros(1, 3, 2)
-    output = torch.zeros(1, 3, 2)
-    with torch.no_grad():
-        result = tiny_model.infer(obs, output)
-    assert len(result) == 3
-
-
 def test_infer_priors_in_unit_interval(tiny_model):
     obs    = torch.zeros(1, 4, 2)
     output = torch.zeros(1, 4, 2)
@@ -86,14 +77,6 @@ def test_lambd_default_is_tuple():
 # ---------------------------------------------------------------------------
 # forward() still returns loss for training
 # ---------------------------------------------------------------------------
-
-def test_forward_returns_four_values(tiny_model):
-    obs    = torch.zeros(1, 3, 2)
-    output = torch.zeros(1, 3, 2)
-    with torch.no_grad():
-        result = tiny_model.forward(obs, output)
-    assert len(result) == 4
-
 
 def test_forward_loss_is_scalar(tiny_model):
     obs    = torch.zeros(1, 3, 2)

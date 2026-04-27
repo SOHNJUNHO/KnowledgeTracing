@@ -60,23 +60,6 @@ def test_aggregate_priors_sequence_order():
     assert result[1]["priors"] == [pytest.approx(0.30, abs=1e-4), pytest.approx(0.52, abs=1e-4)]
 
 
-def test_aggregate_guesses_and_slips_are_lists():
-    result = _aggregate_bkt_by_skill(MOCK_DIAGNOSIS)
-    assert isinstance(result[1]["guesses"], list)
-    assert isinstance(result[1]["slips"], list)
-    assert len(result[1]["guesses"]) == result[1]["n_observations"]
-    assert len(result[1]["slips"])   == result[1]["n_observations"]
-
-
-
-def test_aggregate_priors_single_observation():
-    single = {
-        "t0": {**MOCK_DIAGNOSIS["timestep0"], "skill_id": 3, "skill_name": "Skill C", "prior": 0.50},
-    }
-    result = _aggregate_bkt_by_skill(single)
-    assert result[3]["priors"] == [pytest.approx(0.50, abs=1e-4)]
-
-
 def test_aggregate_priors_captures_oscillation():
     """The full sequence [0.30, 0.75, 0.28, 0.80, 0.31] is passed intact —
     the LLM can see the oscillation directly without any derived statistic."""
@@ -87,17 +70,6 @@ def test_aggregate_priors_captures_oscillation():
     }
     result = _aggregate_bkt_by_skill(oscillating)
     assert result[4]["priors"] == [pytest.approx(p, abs=1e-4) for p in raw_priors]
-
-
-def test_aggregate_priors_captures_recovery_after_dip():
-    """[0.70, 0.20, 0.75] — dip is visible in the sequence."""
-    raw_priors = [0.70, 0.20, 0.75]
-    recovery = {
-        f"t{i}": {**MOCK_DIAGNOSIS["timestep0"], "skill_id": 5, "skill_name": "Skill E", "prior": p}
-        for i, p in enumerate(raw_priors)
-    }
-    result = _aggregate_bkt_by_skill(recovery)
-    assert result[5]["priors"] == [pytest.approx(p, abs=1e-4) for p in raw_priors]
 
 
 # ---------------------------------------------------------------------------

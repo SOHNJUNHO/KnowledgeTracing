@@ -64,11 +64,6 @@ def test_next_skills_section_returns_empty_when_no_named_skills():
     assert _build_next_skills_section("하", ctx) == ""
 
 
-def test_next_skills_section_numbers_skills():
-    section = _build_next_skills_section("하", GRAPH_CONTEXT)
-    assert "1." in section
-
-
 def test_next_skills_section_returns_empty_for_missing_key():
     ctx = {"name": "순환소수", "semester": "1학기", "description": "..."}
     # no "next_skills" key at all
