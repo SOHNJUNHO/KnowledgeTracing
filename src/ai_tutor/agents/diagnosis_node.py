@@ -31,7 +31,7 @@ from collections import defaultdict
 import httpx
 from langfuse import Langfuse
 from langfuse.decorators import observe, langfuse_context
-from openai import RateLimitError, APIConnectionError, APITimeoutError
+from openai import AsyncOpenAI as _RawAsyncOpenAI, RateLimitError, APIConnectionError, APITimeoutError
 
 from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
@@ -172,8 +172,8 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_diagnose_llm(client: object, messages: list) -> str:
-    response = await client.chat.completions.create(  # type: ignore[union-attr]
+async def _call_diagnose_llm(client: _RawAsyncOpenAI, messages: list) -> str:
+    response = await client.chat.completions.create(
         model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},

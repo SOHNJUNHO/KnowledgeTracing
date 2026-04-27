@@ -19,7 +19,7 @@ from typing import Any, cast
 
 from langfuse import Langfuse
 from langfuse.decorators import observe, langfuse_context
-from openai import RateLimitError, APIConnectionError, APITimeoutError
+from openai import AsyncOpenAI as _RawAsyncOpenAI, RateLimitError, APIConnectionError, APITimeoutError
 
 from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
@@ -92,8 +92,8 @@ def _build_next_skills_section(level: str, graph_context: dict | None) -> str:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_recommend_llm(client: object, messages: list) -> str:
-    response = await client.chat.completions.create(  # type: ignore[union-attr]
+async def _call_recommend_llm(client: _RawAsyncOpenAI, messages: list) -> str:
+    response = await client.chat.completions.create(
         model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},
@@ -106,7 +106,7 @@ async def _call_recommend_llm(client: object, messages: list) -> str:
 # Per-skill coroutine — graph fetch + prompt compile + LLM call
 # ---------------------------------------------------------------------------
 
-async def _process_skill(client: object, kc_data: dict) -> dict | None:
+async def _process_skill(client: _RawAsyncOpenAI, kc_data: dict) -> dict | None:
     """Fetch graph context and generate LLM feedback for a single skill."""
     level    = kc_data["proficiency_level"]
     skill_id = kc_data["kc_id"]

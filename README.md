@@ -149,21 +149,15 @@ The workflow infers execution order from the event types — if `diagnose` takes
 
 ### Why the migration was made
 
-| Concern | LangGraph | LlamaIndex Workflows |
+The pipeline is strictly linear — BKT → Diagnose → Recommend, always in that order, no branching. LangGraph's strengths (conditional routing, agentic loops, human-in-the-loop) add no value here.
+
+The decisive reason was **typed events as data contracts**. In LangGraph every node reads from and writes to a single shared `AgentState` dict. A node can silently read a key that was never set, or overwrite a key another node depends on — nothing prevents it at runtime. In LlamaIndex Workflows each step receives a typed Pydantic event containing exactly what it needs and nothing else. A missing or mistyped field raises an error immediately at the step boundary rather than producing silent wrong output downstream.
+
+| | LangGraph | LlamaIndex Workflows |
 |---|---|---|
-| **Data passing** | Shared mutable `AgentState` dict | Typed events — each step only sees what it needs |
-| **Routing** | Explicit `add_edge()` calls | Inferred from return type — less boilerplate |
-| **Error isolation** | One state object; one node's bad write affects all others | Events are immutable; a failing step cannot corrupt the next step's input |
-| **Schema enforcement** | Optional (TypedDict helps but doesn't prevent runtime misuse) | Enforced by Pydantic event types at each boundary |
-| **Concurrency** | Supported via `send()` API but requires explicit fan-out wiring | Native: multiple steps listening for the same event type run in parallel automatically |
-
-For this pipeline, the key reasons were:
-
-1. **The BKT → Diagnose → Recommend sequence is strictly linear with well-defined data contracts between steps.** LlamaIndex's event types make those contracts explicit and checked at runtime — a mismatched field raises an error immediately rather than silently producing wrong output.
-
-2. **The recommendation step fans out across all skills concurrently.** LlamaIndex handles this natively with `asyncio.gather` inside a single step; in LangGraph it would require a `send()` fan-out pattern and a corresponding join edge, which adds graph complexity.
-
-3. **Less framework coupling.** LangGraph pipelines tend to be tightly bound to the framework's state machine. LlamaIndex steps are just async methods on a class — they can be called, tested, and reasoned about without running the full workflow engine.
+| **Best for** | Agentic loops, branching, conditional routing | Linear deterministic pipelines |
+| **Data passing** | Shared mutable `AgentState` dict | Typed Pydantic events per step |
+| **Schema enforcement** | Optional | Enforced at each step boundary |
 
 ---
 

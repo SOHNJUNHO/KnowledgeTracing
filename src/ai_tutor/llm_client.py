@@ -12,6 +12,7 @@ vllm path:   returns openai.AsyncOpenAI pointed at VLLM_BASE_URL;
 """
 
 import os
+from typing import cast
 
 from openai import AsyncOpenAI as _RawAsyncOpenAI
 
@@ -20,7 +21,7 @@ def get_llm_client() -> _RawAsyncOpenAI:
     backend = os.environ["LLM_BACKEND"]
     if backend == "openai":
         from langfuse.openai import AsyncOpenAI
-        return AsyncOpenAI()
+        return cast(_RawAsyncOpenAI, AsyncOpenAI())
     if backend == "vllm":
         base_url = os.environ["VLLM_BASE_URL"]
         return _RawAsyncOpenAI(base_url=base_url, api_key="vllm")

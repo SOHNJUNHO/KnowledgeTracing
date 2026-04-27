@@ -3,11 +3,7 @@ from typing import Any, TypedDict
 try:
     from llama_index.core.workflow import Event
 except ModuleNotFoundError:  # pragma: no cover - fallback for helper/API tests
-    from pydantic import BaseModel
-
-    class Event(BaseModel):
-        """Minimal fallback so non-workflow modules remain importable in tests."""
-        pass
+    from pydantic import BaseModel as Event  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------
