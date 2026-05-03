@@ -8,7 +8,7 @@ from langfuse import Langfuse
 
 
 async def main() -> None:
-    from ai_tutor.agents.graph import run_tutor
+    from ai_tutor.workflow.workflow import run_tutor
 
     print("Agentic GraphRAG Tutor Initialized.")
 

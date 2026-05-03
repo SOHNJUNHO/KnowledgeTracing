@@ -1,5 +1,5 @@
 """
-Unit tests for recommendation_node helpers.
+Unit tests for recommendation step helpers.
 
 All LLM, Neo4j toolbox, and Langfuse calls are mocked — these tests verify
 orchestration logic, the pure next-skills section builder, Pydantic validation,
@@ -10,8 +10,8 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from ai_tutor.agents.recommendation_node import _build_next_skills_section
-from ai_tutor.agents.schemas import FeedbackRecord
+from ai_tutor.workflow.recommendation import _build_next_skills_section
+from ai_tutor.workflow.schemas import FeedbackRecord
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +113,8 @@ def _mock_langfuse_prompt(mocker, compiled_text: str = "mocked prompt"):
     mock_prompt.compile.return_value = compiled_text
     mock_lf = MagicMock()
     mock_lf.get_prompt.return_value = mock_prompt
-    mocker.patch("ai_tutor.agents.recommendation_node._get_langfuse", return_value=mock_lf)
-    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_model", return_value="test-model")
+    mocker.patch("ai_tutor.workflow.recommendation._get_langfuse", return_value=mock_lf)
+    mocker.patch("ai_tutor.workflow.recommendation.get_llm_model", return_value="test-model")
 
 
 @pytest.mark.asyncio
@@ -122,16 +122,16 @@ async def test_recommend_node_returns_feedback_for_all_skills(mocker):
     _mock_langfuse_prompt(mocker)
 
     mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
-    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
+    mocker.patch("ai_tutor.workflow.recommendation.get_tool", return_value=mock_tool)
 
     llm_payload = json.dumps({"reasoning": "분석 요약", "feedback": "학습 추천 내용"})
     mock_response = MagicMock()
     mock_response.choices[0].message.content = llm_payload
     mock_client = AsyncMock()
     mock_client.chat.completions.create.return_value = mock_response
-    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_client", return_value=mock_client)
+    mocker.patch("ai_tutor.workflow.recommendation.get_llm_client", return_value=mock_client)
 
-    from ai_tutor.agents.recommendation_node import recommend_node
+    from ai_tutor.workflow.recommendation import recommend_node
     result = await recommend_node({"analysis": [KC_LOW, KC_HIGH]})
 
     assert len(result["feedback"]) == 2
@@ -142,16 +142,16 @@ async def test_recommend_node_calls_llm_once_per_skill(mocker):
     _mock_langfuse_prompt(mocker)
 
     mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
-    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
+    mocker.patch("ai_tutor.workflow.recommendation.get_tool", return_value=mock_tool)
 
     llm_payload = json.dumps({"reasoning": "r", "feedback": "f"})
     mock_response = MagicMock()
     mock_response.choices[0].message.content = llm_payload
     mock_client = AsyncMock()
     mock_client.chat.completions.create.return_value = mock_response
-    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_client", return_value=mock_client)
+    mocker.patch("ai_tutor.workflow.recommendation.get_llm_client", return_value=mock_client)
 
-    from ai_tutor.agents.recommendation_node import recommend_node
+    from ai_tutor.workflow.recommendation import recommend_node
     n_skills = 3
     await recommend_node({"analysis": [KC_LOW] * n_skills})
 
@@ -164,7 +164,7 @@ async def test_recommend_node_skips_invalid_llm_output(mocker):
     _mock_langfuse_prompt(mocker)
 
     mock_tool = AsyncMock(return_value=json.dumps([GRAPH_CONTEXT]))
-    mocker.patch("ai_tutor.agents.recommendation_node.get_tool", return_value=mock_tool)
+    mocker.patch("ai_tutor.workflow.recommendation.get_tool", return_value=mock_tool)
 
     # Empty feedback string fails FeedbackRecord validation (min_length=1)
     bad_payload = json.dumps({"reasoning": "r", "feedback": ""})
@@ -172,9 +172,9 @@ async def test_recommend_node_skips_invalid_llm_output(mocker):
     mock_response.choices[0].message.content = bad_payload
     mock_client = AsyncMock()
     mock_client.chat.completions.create.return_value = mock_response
-    mocker.patch("ai_tutor.agents.recommendation_node.get_llm_client", return_value=mock_client)
+    mocker.patch("ai_tutor.workflow.recommendation.get_llm_client", return_value=mock_client)
 
-    from ai_tutor.agents.recommendation_node import recommend_node
+    from ai_tutor.workflow.recommendation import recommend_node
     result = await recommend_node({"analysis": [KC_LOW, KC_HIGH]})
 
     # Both records invalid — list is empty, not a crash

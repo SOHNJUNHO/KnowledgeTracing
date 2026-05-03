@@ -1,10 +1,10 @@
 """
 Recommendation pipeline: one workflow step.
 
-  recommend_node — for each skill in the diagnosis, deterministically selects
-                   the appropriate Neo4j Cypher tool based on proficiency level
-                   (상/중/하), fetches curriculum graph context from Neo4j, and
-                   generates a natural-language study recommendation via the LLM.
+  recommend — for each skill in the diagnosis, deterministically selects
+              the appropriate Neo4j Cypher tool based on proficiency level
+              (상/중/하), fetches curriculum graph context from Neo4j, and
+              generates a natural-language study recommendation via the LLM.
 
   All per-skill graph + LLM calls are executed concurrently with asyncio.gather,
   so total wall time equals the slowest single skill rather than the sum of all.
@@ -25,8 +25,7 @@ from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
-from ai_tutor.agents.state import AgentState
-from ai_tutor.agents.schemas import FeedbackRecord
+from ai_tutor.workflow.schemas import FeedbackRecord
 from ai_tutor.tools.neo4j_tool import get_tool
 
 _TOOL_MAP = {
@@ -183,7 +182,7 @@ async def _process_skill(client: _RawAsyncOpenAI, kc_data: dict) -> dict | None:
 # ---------------------------------------------------------------------------
 
 @observe(name="recommend")
-async def recommend_node(state: AgentState) -> dict:
+async def recommend_node(state: dict) -> dict:
     """Retrieve graph context and generate per-skill feedback concurrently.
 
     Reads:   state['analysis']

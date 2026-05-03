@@ -1,12 +1,12 @@
 """
 Diagnosis pipeline: two workflow steps.
 
-  run_bkt_node  — calls the separate BKTransformer inference service via HTTP,
-                  receives per-skill BKT parameters, builds timestep records.
+  run_bkt   — calls the separate BKTransformer inference service via HTTP,
+              receives per-skill BKT parameters, builds timestep records.
 
-  diagnose_node — aggregates per-timestep BKT data into compact per-skill summaries,
-                  then calls an LLM to assign a proficiency level (상/중/하) and
-                  natural-language reasoning per skill.
+  diagnose  — aggregates per-timestep BKT data into compact per-skill summaries,
+              then calls an LLM to assign a proficiency level (상/중/하) and
+              natural-language reasoning per skill.
 
 Deployment note
 ---------------
@@ -37,8 +37,7 @@ from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
-from ai_tutor.agents.state import AgentState
-from ai_tutor.agents.schemas import BKTTimestep, AnalysisRecord
+from ai_tutor.workflow.schemas import BKTTimestep, AnalysisRecord
 
 # ---------------------------------------------------------------------------
 # BKTransformer inference service URL — override via BKT_SERVICE_URL env var
@@ -56,11 +55,11 @@ def _get_langfuse() -> Langfuse:
 
 
 # ---------------------------------------------------------------------------
-# Node 1: Call BKT inference service → build timestep records
+# Step 1: Call BKT inference service → build timestep records
 # ---------------------------------------------------------------------------
 
 @observe(name="run_bkt")
-async def run_bkt_node(state: AgentState) -> dict:
+async def run_bkt_node(state: dict) -> dict:
     """Run BKTransformer inference on a single student's sequence.
 
     Sends the observation and output tensors to the separate inference
@@ -163,7 +162,7 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Node 2: LLM diagnosis → proficiency level + reasoning
+# Step 2: LLM diagnosis → proficiency level + reasoning
 # ---------------------------------------------------------------------------
 
 @retry(
@@ -183,7 +182,7 @@ async def _call_diagnose_llm(client: _RawAsyncOpenAI, messages: list) -> str:
 
 
 @observe(name="diagnose")
-async def diagnose_node(state: AgentState) -> dict:
+async def diagnose_node(state: dict) -> dict:
     """Call the LLM to assign proficiency levels from BKT summaries.
 
     Reads:   state['student_id'], state['diagnosis']

@@ -1,13 +1,13 @@
 """
-Unit tests for diagnosis_node helpers.
+Unit tests for diagnosis step helpers.
 
 These tests cover pure-Python logic only (aggregation, template building,
 Pydantic validation).  No model checkpoint or LLM calls are made.
 """
 
 import pytest
-from ai_tutor.agents.diagnosis_node import _aggregate_bkt_by_skill, _build_output_template
-from ai_tutor.agents.schemas import AnalysisRecord
+from ai_tutor.workflow.diagnosis import _aggregate_bkt_by_skill, _build_output_template
+from ai_tutor.workflow.schemas import AnalysisRecord
 
 
 # ---------------------------------------------------------------------------

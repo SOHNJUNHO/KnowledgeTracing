@@ -30,7 +30,7 @@ app = FastAPI(title="AI Tutor API", version="1.0.0", lifespan=lifespan)
 def _get_run_tutor():
     # Import lazily so helper/unit tests can import this module without the
     # full workflow stack installed.
-    from ai_tutor.agents.graph import run_tutor
+    from ai_tutor.workflow.workflow import run_tutor
 
     return run_tutor
 
@@ -94,9 +94,6 @@ async def tutor(req: TutorRequest) -> TutorResponse:
         "obs":              obs,
         "output":           output,
         "skill_id_to_name": skill_id_to_name,
-        "diagnosis": {},
-        "analysis":  [],
-        "feedback":  [],
     }
 
     result = await _get_run_tutor()(state)
