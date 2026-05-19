@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 # Load environment variables before any package imports that read them
 load_dotenv()
 
-from langfuse import Langfuse
+from langfuse import get_client
+from ai_tutor.observability import setup_langfuse
 
 
 async def main() -> None:
@@ -58,5 +59,6 @@ async def main() -> None:
 
 
 def cli() -> None:
+    setup_langfuse()
     asyncio.run(main())
-    Langfuse().flush()  # block until all traces are uploaded before the process exits
+    get_client().flush()  # block until all traces are uploaded before the process exits

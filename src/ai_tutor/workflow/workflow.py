@@ -13,7 +13,7 @@ Workflow flow:
 """
 
 from llama_index.core.workflow import Workflow, Context, StartEvent, StopEvent, step
-from langfuse.decorators import observe, langfuse_context
+from langfuse import observe, propagate_attributes
 
 from ai_tutor.workflow.events import BKTDoneEvent, DiagnosisDoneEvent
 from ai_tutor.workflow.diagnosis import run_bkt_node, diagnose_node
@@ -58,16 +58,16 @@ class TutorWorkflow(Workflow):
 @observe(name="tutor_pipeline")
 async def run_tutor(state: dict) -> dict:
     """Top-level entry point. Runs the full pipeline under one Langfuse trace."""
-    langfuse_context.update_current_trace(
+    with propagate_attributes(
         user_id=state["student_id"],
         session_id=state["student_id"],
         tags=["production"],
-    )
-    workflow = TutorWorkflow(timeout=120, verbose=False)
-    feedback = await workflow.run(
-        student_id=state["student_id"],
-        obs=state["obs"],
-        output=state["output"],
-        skill_id_to_name=state["skill_id_to_name"],
-    )
-    return {"feedback": feedback}
+    ):
+        workflow = TutorWorkflow(timeout=120, verbose=False)
+        feedback = await workflow.run(
+            student_id=state["student_id"],
+            obs=state["obs"],
+            output=state["output"],
+            skill_id_to_name=state["skill_id_to_name"],
+        )
+        return {"feedback": feedback}

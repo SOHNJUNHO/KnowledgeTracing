@@ -17,8 +17,7 @@ import asyncio
 import json
 from typing import Any, cast
 
-from langfuse import Langfuse
-from langfuse.decorators import observe, langfuse_context
+from langfuse import get_client
 from openai import AsyncOpenAI as _RawAsyncOpenAI, RateLimitError, APIConnectionError, APITimeoutError
 
 from ai_tutor.llm_client import get_llm_client, get_llm_model
@@ -37,16 +36,6 @@ _TOOL_MAP = {
 # The knowledge graph is static — same skill_id + tool always returns the same
 # result. Cache results in memory so repeat queries pay zero Neo4j latency.
 _graph_cache: dict[tuple[str, int], dict | None] = {}
-
-_langfuse: Langfuse | None = None
-
-
-def _get_langfuse() -> Langfuse:
-    global _langfuse
-    if _langfuse is None:
-        _langfuse = Langfuse()
-    return _langfuse
-
 
 # ---------------------------------------------------------------------------
 # Pure helper — conditional next-skills block (no Langfuse dependency)
@@ -91,12 +80,13 @@ def _build_next_skills_section(level: str, graph_context: dict | None) -> str:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_recommend_llm(client: _RawAsyncOpenAI, messages: list) -> str:
+async def _call_recommend_llm(client: _RawAsyncOpenAI, messages: list, prompt_obj) -> str:
     response = await client.chat.completions.create(
         model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.3,
+        langfuse_prompt=prompt_obj,
     )
     return response.choices[0].message.content or ""
 
@@ -135,7 +125,7 @@ async def _process_skill(client: _RawAsyncOpenAI, kc_data: dict) -> dict | None:
     ctx_desc     = graph_context.get("description", "개념 설명 없음") if graph_context else "없음"
 
     # Fetch the versioned prompt from Langfuse — linked to the active trace span
-    prompt_obj = _get_langfuse().get_prompt("feedback_prompt", label="production")
+    prompt_obj = get_client().get_prompt("feedback_prompt", label="production")
     prompt = prompt_obj.compile(
         kc_name=kc_data["kc_name"],
         level=level,
@@ -154,7 +144,7 @@ async def _process_skill(client: _RawAsyncOpenAI, kc_data: dict) -> dict | None:
         {"role": "user", "content": prompt},
     ]
 
-    content = await _call_recommend_llm(client, messages)
+    content = await _call_recommend_llm(client, messages, prompt_obj)
 
     try:
         result = json.loads(content)
@@ -181,7 +171,6 @@ async def _process_skill(client: _RawAsyncOpenAI, kc_data: dict) -> dict | None:
 # Workflow step implementation
 # ---------------------------------------------------------------------------
 
-@observe(name="recommend")
 async def recommend_node(state: dict) -> dict:
     """Retrieve graph context and generate per-skill feedback concurrently.
 
@@ -198,7 +187,7 @@ async def recommend_node(state: dict) -> dict:
 
     feedback_records = [r for r in results if r is not None]
 
-    langfuse_context.update_current_observation(
+    get_client().update_current_span(
         output=feedback_records,
         metadata={"n_skills": len(state["analysis"])},
     )

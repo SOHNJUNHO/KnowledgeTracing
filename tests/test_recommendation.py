@@ -113,7 +113,7 @@ def _mock_langfuse_prompt(mocker, compiled_text: str = "mocked prompt"):
     mock_prompt.compile.return_value = compiled_text
     mock_lf = MagicMock()
     mock_lf.get_prompt.return_value = mock_prompt
-    mocker.patch("ai_tutor.workflow.recommendation._get_langfuse", return_value=mock_lf)
+    mocker.patch("ai_tutor.workflow.recommendation.get_client", return_value=mock_lf)
     mocker.patch("ai_tutor.workflow.recommendation.get_llm_model", return_value="test-model")
 
 

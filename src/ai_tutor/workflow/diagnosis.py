@@ -29,8 +29,7 @@ import os
 from collections import defaultdict
 
 import httpx
-from langfuse import Langfuse
-from langfuse.decorators import observe, langfuse_context
+from langfuse import get_client
 from openai import AsyncOpenAI as _RawAsyncOpenAI, RateLimitError, APIConnectionError, APITimeoutError
 
 from ai_tutor.llm_client import get_llm_client, get_llm_model
@@ -44,21 +43,10 @@ from ai_tutor.workflow.schemas import BKTTimestep, AnalysisRecord
 # ---------------------------------------------------------------------------
 _BKT_SERVICE_URL = os.getenv("BKT_SERVICE_URL", "http://localhost:8001")
 
-_langfuse: Langfuse | None = None
-
-
-def _get_langfuse() -> Langfuse:
-    global _langfuse
-    if _langfuse is None:
-        _langfuse = Langfuse()
-    return _langfuse
-
-
 # ---------------------------------------------------------------------------
 # Step 1: Call BKT inference service → build timestep records
 # ---------------------------------------------------------------------------
 
-@observe(name="run_bkt")
 async def run_bkt_node(state: dict) -> dict:
     """Run BKTransformer inference on a single student's sequence.
 
@@ -103,7 +91,7 @@ async def run_bkt_node(state: dict) -> dict:
         )
         diagnosis[f"timestep{t}"] = entry.model_dump()
 
-    langfuse_context.update_current_observation(
+    get_client().update_current_span(
         output=diagnosis,
         metadata={"n_timesteps": T},
     )
@@ -171,17 +159,17 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_diagnose_llm(client: _RawAsyncOpenAI, messages: list) -> str:
+async def _call_diagnose_llm(client: _RawAsyncOpenAI, messages: list, prompt_obj) -> str:
     response = await client.chat.completions.create(
         model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.2,
+        langfuse_prompt=prompt_obj,
     )
     return response.choices[0].message.content or ""
 
 
-@observe(name="diagnose")
 async def diagnose_node(state: dict) -> dict:
     """Call the LLM to assign proficiency levels from BKT summaries.
 
@@ -192,7 +180,7 @@ async def diagnose_node(state: dict) -> dict:
     aggregated = _aggregate_bkt_by_skill(state["diagnosis"])
     template = _build_output_template(student_id, state["diagnosis"])
 
-    prompt_obj = _get_langfuse().get_prompt("diagnosis_prompt", label="production")
+    prompt_obj = get_client().get_prompt("diagnosis_prompt", label="production")
     prompt = prompt_obj.compile(
         aggregated_json=json.dumps({student_id: aggregated}, indent=2, ensure_ascii=False),
         template_json=json.dumps(template, indent=2, ensure_ascii=False),
@@ -204,7 +192,7 @@ async def diagnose_node(state: dict) -> dict:
         {"role": "user",   "content": prompt},
     ]
 
-    raw = json.loads(await _call_diagnose_llm(client, messages))
+    raw = json.loads(await _call_diagnose_llm(client, messages, prompt_obj))
     raw_list = raw.get(student_id, [])
 
     validated: list[dict] = []
@@ -212,7 +200,7 @@ async def diagnose_node(state: dict) -> dict:
         try:
             validated.append(AnalysisRecord(**record).model_dump())
         except ValidationError as exc:
-            langfuse_context.update_current_observation(
+            get_client().update_current_span(
                 metadata={"validation_error": str(exc), "bad_record": record}
             )
 

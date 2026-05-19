@@ -15,12 +15,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from ai_tutor.observability import setup_langfuse
 from ai_tutor.tools.neo4j_tool import close_driver
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_langfuse()
     yield
+    from langfuse import get_client
+    get_client().flush()
     await close_driver()
 
 

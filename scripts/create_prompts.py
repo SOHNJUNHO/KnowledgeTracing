@@ -12,9 +12,9 @@ Usage:
 from dotenv import load_dotenv
 load_dotenv()
 
-from langfuse import Langfuse
+from langfuse import get_client
 
-lf = Langfuse()
+lf = get_client()
 
 
 # ---------------------------------------------------------------------------
