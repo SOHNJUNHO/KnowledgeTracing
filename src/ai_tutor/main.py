@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from langfuse import get_client
-from ai_tutor.observability import setup_langfuse
+
 
 
 async def main() -> None:
@@ -59,6 +59,9 @@ async def main() -> None:
 
 
 def cli() -> None:
-    setup_langfuse()
+    import os
+    if os.getenv("LANGFUSE_PUBLIC_KEY"):
+        from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+        LlamaIndexInstrumentor().instrument()
     asyncio.run(main())
     get_client().flush()  # block until all traces are uploaded before the process exits

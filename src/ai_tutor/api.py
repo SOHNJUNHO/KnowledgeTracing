@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from ai_tutor.observability import setup_langfuse
+
 from ai_tutor.tools.neo4j_tool import close_driver
 
 
@@ -32,7 +32,10 @@ def _warmup_bkt() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_langfuse()
+    import os
+    if os.getenv("LANGFUSE_PUBLIC_KEY"):
+        from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+        LlamaIndexInstrumentor().instrument()
     _warmup_bkt()
     yield
     from langfuse import get_client
