@@ -1,34 +1,19 @@
 """
 Diagnosis pipeline: two workflow steps.
 
-  run_bkt   — calls the separate BKTransformer inference service via HTTP,
-              receives per-skill BKT parameters, builds timestep records.
+  run_bkt   — runs BKTransformer inference in-process, builds timestep records.
 
   diagnose  — aggregates per-timestep BKT data into compact per-skill summaries,
               then calls an LLM to assign a proficiency level (상/중/하) and
               natural-language reasoning per skill.
-
-Deployment note
----------------
-For single-instance / demo deployments the BKTransformer can be loaded
-in-process via FastAPI lifespan instead of running a separate service:
-
-    from contextlib import asynccontextmanager
-
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        app.state.model = _load_model()
-        yield
-
-The inference service is preferred for production scale so that one GPU-
-hosted model is shared across many API workers rather than replicated.
 """
 
+import asyncio
 import json
 import os
 from collections import defaultdict
+from pathlib import Path
 
-import httpx
 from langfuse import get_client
 from openai import AsyncOpenAI as _RawAsyncOpenAI, RateLimitError, APIConnectionError, APITimeoutError
 
@@ -39,55 +24,75 @@ from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_excep
 from ai_tutor.workflow.schemas import BKTTimestep, AnalysisRecord
 
 # ---------------------------------------------------------------------------
-# BKTransformer inference service URL — override via BKT_SERVICE_URL env var
+# BKTransformer lazy singleton — loaded once, compiled once
 # ---------------------------------------------------------------------------
-_BKT_SERVICE_URL = os.getenv("BKT_SERVICE_URL", "http://localhost:8001")
+
+_DEFAULT_CHECKPOINT = (
+    Path(__file__).parent.parent / "bkt" / "checkpoints"
+    / "upgraded-best-epoch=09-val_auc=0.7993.pt"
+)
+
+_bkt_model = None
+
+
+def _get_bkt_model():
+    global _bkt_model
+    if _bkt_model is None:
+        import torch
+        from ai_tutor.bkt.config import BKTConfig
+        from ai_tutor.bkt.model import BKTransformer
+
+        checkpoint_path = os.getenv("BKT_CHECKPOINT") or str(_DEFAULT_CHECKPOINT)
+        m = BKTransformer(BKTConfig())
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        m.load_state_dict(ckpt.get("state_dict", ckpt))
+        m.eval()
+        m = torch.compile(m)
+        _bkt_model = m
+    return _bkt_model
+
 
 # ---------------------------------------------------------------------------
-# Step 1: Call BKT inference service → build timestep records
+# Step 1: BKT inference in-process → build timestep records
 # ---------------------------------------------------------------------------
+
+def _infer_sync(obs_t, output_t):
+    import torch
+    with torch.no_grad():
+        return _get_bkt_model().infer(obs_t, output_t)
+
 
 async def run_bkt_node(state: dict) -> dict:
     """Run BKTransformer inference on a single student's sequence.
 
-    Sends the observation and output tensors to the separate inference
-    service and reconstructs per-timestep BKT records from the response.
-
     Reads:   state['obs'], state['output'], state['skill_id_to_name']
     Writes:  state['diagnosis']
     """
+    import torch
+
     skill_id_to_name: dict = state["skill_id_to_name"]
 
-    payload = {
-        "obs": state["obs"],
-        "output": state["output"],
-    }
+    obs_t    = torch.tensor(state["obs"],    dtype=torch.float32)
+    output_t = torch.tensor(state["output"], dtype=torch.float32)
+    T = obs_t.shape[1]
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(f"{_BKT_SERVICE_URL}/infer", json=payload)
-        resp.raise_for_status()
-        result = resp.json()
+    # torch inference is CPU-bound — run in a thread to avoid blocking the event loop
+    corrects, latents, params = await asyncio.to_thread(_infer_sync, obs_t, output_t)
 
-    corrects = result["corrects"]      # [[...]]
-    latents = result["latents"]        # [[...]] — per timestep, per skill
-    params = result["params"]          # [[...]] — per timestep, per skill, 4 values
-
-    T = len(latents)
     diagnosis: dict = {}
-
     for t in range(T):
-        skill_id = int(state["output"][0][t][0])
+        skill_id = int(output_t[0, t, 0].item())
         if skill_id == -1000:
             continue
         entry = BKTTimestep(
             skill_id=skill_id,
             skill_name=skill_id_to_name.get(skill_id, str(skill_id)),
-            actual_correct=int(state["output"][0][t][1]),
-            prior=float(latents[t][skill_id]),
-            learning_rate=float(params[t][skill_id][0]),
-            guess=float(params[t][skill_id][2]),
-            slip=float(params[t][skill_id][3]),
-            predicted_correct=float(corrects[0][t]),
+            actual_correct=int(output_t[0, t, 1].item()),
+            prior=float(latents[0, t, skill_id]),
+            learning_rate=float(params[0, t, skill_id, 0]),
+            guess=float(params[0, t, skill_id, 2]),
+            slip=float(params[0, t, skill_id, 3]),
+            predicted_correct=float(corrects[0, t, 0]),
         )
         diagnosis[f"timestep{t}"] = entry.model_dump()
 

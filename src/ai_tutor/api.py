@@ -22,6 +22,15 @@ from ai_tutor.tools.neo4j_tool import close_driver
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_langfuse()
+    # Load the BKT model and trigger torch.compile at startup so the first
+    # real request does not pay the compilation cost.
+    import torch
+    from ai_tutor.workflow.diagnosis import _get_bkt_model
+    model = _get_bkt_model()
+    dummy_obs    = torch.zeros(1, 2, 2)
+    dummy_output = torch.zeros(1, 2, 2)
+    with torch.no_grad():
+        model.infer(dummy_obs, dummy_output)
     yield
     from langfuse import get_client
     get_client().flush()

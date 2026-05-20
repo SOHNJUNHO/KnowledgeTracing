@@ -17,6 +17,8 @@ dependencies = [
     "pydantic==2.12.5",
     "python-dotenv==1.2.2",
     "tenacity==9.1.4",
+    "torch",
+    "torchtune",
     "typer==0.24.1",
     "uvicorn[standard]",
 ]
@@ -38,3 +40,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
