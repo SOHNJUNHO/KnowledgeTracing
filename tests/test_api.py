@@ -6,6 +6,8 @@ from ai_tutor.api import app
 
 @pytest.mark.asyncio
 async def test_tutor_endpoint_returns_feedback(monkeypatch):
+    monkeypatch.setattr("ai_tutor.api._warmup_bkt", lambda: None)
+
     async def fake_run_tutor(state):
         assert state["student_id"] == "s1"
         assert state["obs"] == [[[1, 1], [2, 0]]]
@@ -42,7 +44,8 @@ async def test_tutor_endpoint_returns_feedback(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_tutor_endpoint_rejects_short_sequence():
+async def test_tutor_endpoint_rejects_short_sequence(monkeypatch):
+    monkeypatch.setattr("ai_tutor.api._warmup_bkt", lambda: None)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post(
