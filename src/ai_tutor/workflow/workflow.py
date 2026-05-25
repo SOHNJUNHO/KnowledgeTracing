@@ -60,7 +60,7 @@ async def run_tutor(state: dict) -> dict:
     """Top-level entry point. Runs the full pipeline under one Langfuse trace."""
     with propagate_attributes(
         user_id=state["student_id"],
-        session_id=state["student_id"],
+        session_id=state.get("run_id", state["student_id"]),
         tags=["production"],
     ):
         workflow = TutorWorkflow(timeout=3600, verbose=False)

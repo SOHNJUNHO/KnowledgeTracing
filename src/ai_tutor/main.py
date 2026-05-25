@@ -31,8 +31,8 @@ def csv_to_workflow_states(csv_path: Path) -> list[dict]:
                 sid = int(row["skill_id"])
                 seq.append([sid, int(row["correct"])])
                 name_by_skill.setdefault(sid, row["name"])
-            if len(seq) < 2:
-                continue
+            #if len(seq) < 2:
+            #    continue
             states.append({
                 "student_id":       uid,
                 "obs":              [seq[:-1]],
@@ -43,8 +43,12 @@ def csv_to_workflow_states(csv_path: Path) -> list[dict]:
 
 
 async def main() -> None:
+    import datetime
     import torch
     torch.set_num_threads(2)
+
+    run_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    print(f"Run ID: {run_id}")
 
     from ai_tutor.workflow.workflow import run_tutor
     from ai_tutor.tools.neo4j_tool import close_driver
@@ -56,6 +60,8 @@ async def main() -> None:
         m.infer(dummy, dummy)
 
     states = csv_to_workflow_states(CSV_PATH)
+    for s in states:
+        s["run_id"] = run_id
     print(f"Running pipeline for {len(states)} students concurrently…")
 
     sem = asyncio.Semaphore(4)
