@@ -14,7 +14,7 @@ from ai_tutor.bkt.model import BKTransformer
 
 @pytest.fixture
 def tiny_model() -> BKTransformer:
-    config = BKTConfig(n_skills=10, n_embd=32, n_layer=1, n_head=2, block_size=16, dropout=0.0)
+    config = BKTConfig(n_skills=10, n_embd=32, n_layer=1, n_head=2, block_size=30, dropout=0.0)
     return BKTransformer(config).eval()
 
 
