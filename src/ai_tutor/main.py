@@ -31,6 +31,8 @@ def csv_to_workflow_states(csv_path: Path) -> list[dict]:
                 sid = int(row["skill_id"])
                 seq.append([sid, int(row["correct"])])
                 name_by_skill.setdefault(sid, row["name"])
+            if len(seq) < 2:
+                continue
             states.append({
                 "student_id":       uid,
                 "obs":              [seq[:-1]],
