@@ -1,6 +1,6 @@
 """
 Pydantic models that define and validate the data contract at each
-LangGraph node boundary.
+LlamaIndex Workflow step boundary.
 
   BKTTimestep   — one row of run_bkt_node output (per timestep)
   AnalysisRecord — one row of diagnose_node output (per unique skill)
