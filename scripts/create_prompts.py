@@ -26,26 +26,26 @@ lf = get_client()
 # ---------------------------------------------------------------------------
 
 DIAGNOSIS_PROMPT = """\
-당신은 학습 데이터 분석 전문가입니다.
 
 ## 입력 데이터
-아래 JSON은 각 학생의 지식 구성요소(KC)별 BKT 파라미터 요약입니다.
-각 항목에는 accuracy_rate와 시간 순서로 정렬된 네 가지 시계열이 포함됩니다:
-- priors  : 각 timestep의 P(knowledge) — 지식 상태 시계열
-- learning_rates : 각 timestep의 P(learn) — 학습 속도 시계열
-- guesses : 각 timestep의 P(guess)    — 추측 확률 시계열
-- slips   : 각 timestep의 P(slip)     — 실수 확률 시계열
+아래 JSON은 정답율(accuracy_rate)과 개념(KC)별 BKT 파라미터를 시간순으로 나열한 것입니다.
+BKT 파라미터의 정의는 다음과 같습니다.
+- priors  : P(knowledge) — 알고 있을 확률
+- learning_rates : 학습했을 확율
+- guesses : 모르는데 찍어서 맞았을 확률
+- slips   : 아는데 실수했을 확률
 
 {{aggregated_json}}
 
-## 분석 기준
-- proficiency_level: priors의 마지막 값 기준으로 '상'(≥0.85), '중'(0.4~0.85), '하'(<0.4)
+## 분석 가이드라인
+
 - reasoning: 아래 항목들을 모두 반영하여 4~5문장으로 기술합니다.
-1. 정답률: accuracy_rate를 바탕으로 성취 수준을 요약합니다.
-2. 학습 궤적: priors 시계열 전체를 보고 상승, 하락, 안정, 오르내림(oscillating), 회복(dip then rise) 등의 패턴을 구체적으로 설명합니다.
-3. 학습 속도: learning_rates 시계열이 높으면 빠르게 습득 중임을, 낮거나 감소하면 추가 학습이 필요함을 언급합니다.
-4. 오답 원인: slips 시계열이 높거나 증가하면 "알고도 실수"가 늘고 있음을, guesses 시계열이 높거나 증가하면 "우연한 정답"에 의존하고 있음을 언급합니다.
-5. 종합 결론: 위 정보를 종합하여 proficiency_level과 일관되게 마무리합니다.
+1. 정답률: accuracy_rate를 바탕으로 정답률을 언급하세요.
+2. priors 값의 시간에 따른 패턴(상승,하락,안정) 등을 구체적으로 언급하세요.
+3. learning_rates 값이 높으면 학습 중이나, 낮거나 감소하면 학습이 일어나지 않는 것입니다. 이미 priors 값이 높다면 학습이 일어나지 않을 수 있습니다. 학습율은 prior값이 높지 않을 때 중요합니다.
+4. slips 값은 아는데 실수했을 가능성입니다. priors가 높은 학생의 정답률이 100%가 아니고 해당값이 높게 나타나는 경우에만 언급하세요.
+5. guess 값은 모르는데 찍어서 맞았을 가능성입니다. priors가 낮은 학생의 정답률이 0%가 아니고 해당값이 높게 나타나는 경우에만 언급하세요.
+6. 종합 결론: 엄격하게 위의 정보만을 종합하여 proficiency_level과 일관되게 마무리합니다.
 
 ## 출력 형식
 반드시 아래 구조와 동일한 JSON 형식으로 출력하세요:
@@ -54,9 +54,8 @@ DIAGNOSIS_PROMPT = """\
 
 주의사항:
 1. 모든 키 이름을 정확히 유지하세요.
-2. "?" 부분을 실제 분석 결과로 채우세요.
-   - proficiency_level: "상", "중", "하" 중 하나
-   - reasoning: 실제 분석 내용 (4~5문장)
+2. reasoning의 '?' 부분을 분석 가이드라인을 반영하여 채우세요. 입력받은 정보만을 활용하세요. 마크다운이나 추가 설명은
+절대 포함하지 마세요.
 3. **순수 JSON만 출력**하세요.\
 """
 
@@ -76,29 +75,39 @@ DIAGNOSIS_PROMPT = """\
 # ---------------------------------------------------------------------------
 
 FEEDBACK_PROMPT = """\
-학생 분석 결과:
-- 지식 구성 요소: {{kc_name}}
-- 숙련도 수준: {{level}}
+
+학생의 숙련도에 대한 진단 결과는 다음과 같습니다.
+- 개념명: {{kc_name}}
+- 숙련도 레벨: {{level}}
 - 분석 내용: {{reasoning}}
 
-교육과정 정보:
-- 개념명: {{ctx_name}}
+
+교육과정은 대단원>중단원>소단원>개념의 체계를 따릅니다.
+현재 개념의 교육과정 정보는 다음과 같습니다.
 - 학기: {{ctx_semester}}
-- 설명: {{ctx_desc}}
-{{next_skills_section}}
+{{ctx_chapter}}
+- 개념명: {{ctx_name}}
+- 성취 기준(소단원 기준): {{ctx_achievement}}
+- 개념에 대한 설명: {{ctx_desc}}
+
 위 학생 분석 결과와 교육과정 정보를 바탕으로, 학생에게 맞춤형 피드백을 작성하세요.
 
-## 출력 형식
-다음 JSON 형식으로만 출력하세요:
-{
-  "reasoning": "분석에 기반한 현재 상태 요약 (2~3문장)",
-  "feedback": "학생에게 전달할 맞춤형 학습 추천 (2~3문장)"
-}
+## 피드백 작성 전략
 
-주의사항:
-- proficiency_level '{{level}}'에 맞는 피드백을 제공하세요.
-- 교육과정 정보(학기, 연계 개념)를 구체적으로 언급하세요.
-- **순수 JSON만 출력**하세요.\
+숙련도 수준({{level}})에 따라 다음 전략을 적용하세요:
+- [상]: 달성한 성취를 칭찬하고, '다음 학습 추천 개념' 항목의 교육 정보를 제시하며 도전을 제안하세요.
+- [중]: 조금만 더 힘내자는 응원과 함께 성취 기준과 개념에 대한 자세한 설명을 제시하세요.
+- [하]: 좌절하지 않도록 격려하며, 먼저 학습해야 할 선행 개념의 복습을 유도하세요.
+- 모든 숙련도 수준에서 교육과정의 정보를 언급하세요.
+- 교육과정 정보의 값이 대부분 'N/A'인 경우, 현재 개념에 대한 복습과 칭찬 위주로 작성하세요.
+
+
+## 출력 형식
+반드시 아래 구조의 순수 JSON 형식으로만 출력하세요. 마크다운이나 추가 설명은 절대 포함하지 마세요.
+
+{
+  "feedback": "학생에게 직접 전달될 최종 피드백 메시지입니다. 피드백 작성 전략에 따라 따뜻한 대화체로 작성하세요."
+}
 """
 
 
@@ -107,7 +116,7 @@ def main() -> None:
         name="diagnosis_prompt",
         prompt=DIAGNOSIS_PROMPT,
         labels=["production"],
-        config={"model": "gpt-4o-mini", "temperature": 0.2},
+        config={"model": "qwen3:8b-q4_K_M", "temperature": 0.2},
     )
     print("Created: diagnosis_prompt [production]")
 
@@ -115,7 +124,7 @@ def main() -> None:
         name="feedback_prompt",
         prompt=FEEDBACK_PROMPT,
         labels=["production"],
-        config={"model": "gpt-4o-mini", "temperature": 0.3},
+        config={"model": "qwen3:8b-q4_K_M", "temperature": 0.1},
     )
     print("Created: feedback_prompt [production]")
 

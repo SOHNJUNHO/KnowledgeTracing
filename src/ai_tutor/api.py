@@ -36,6 +36,9 @@ async def lifespan(app: FastAPI):
     if os.getenv("LANGFUSE_PUBLIC_KEY"):
         from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
         LlamaIndexInstrumentor().instrument()
+    import torch
+    # torch.set_num_threads(2)  # default: all cores — causes contention across concurrent requests
+    torch.set_num_threads(2)
     _warmup_bkt()
     yield
     from langfuse import get_client

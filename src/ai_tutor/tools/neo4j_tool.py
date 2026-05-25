@@ -14,11 +14,15 @@ RETURN
   current.skill_id    AS skill_id,
   current.name        AS name,
   current.semester    AS semester,
-  current.description AS description,
+  current.chapter      AS chapter,
+  current.achievement  AS achievement,
+  current.description  AS description,
   collect({
     skill_id:    prereq.skill_id,
     name:        prereq.name,
     semester:    prereq.semester,
+    chapter:     prereq.chapter,
+    achievement: prereq.achievement,
     description: prereq.description
   }) AS next_skills
 """
@@ -29,7 +33,9 @@ RETURN
   current.skill_id    AS skill_id,
   current.name        AS name,
   current.semester    AS semester,
-  current.description AS description
+  current.chapter      AS chapter,
+  current.achievement  AS achievement,
+  current.description  AS description
 """
 
 _GET_ADVANCED_CONCEPTS = """
@@ -39,11 +45,15 @@ RETURN
   current.skill_id    AS skill_id,
   current.name        AS name,
   current.semester    AS semester,
-  current.description AS description,
+  current.chapter      AS chapter,
+  current.achievement  AS achievement,
+  current.description  AS description,
   collect({
     skill_id:    advanced.skill_id,
     name:        advanced.name,
     semester:    advanced.semester,
+    chapter:     advanced.chapter,
+    achievement: advanced.achievement,
     description: advanced.description
   }) AS next_skills
 """

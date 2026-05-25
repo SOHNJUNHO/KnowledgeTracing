@@ -25,33 +25,33 @@ class TutorWorkflow(Workflow):
     @step
     async def run_bkt(self, ctx: Context, ev: StartEvent) -> BKTDoneEvent:
         """Call BKT inference service and build per-timestep records."""
-        await ctx.set("student_id", ev.get("student_id"))
-        await ctx.set("obs", ev.get("obs"))
-        await ctx.set("output", ev.get("output"))
-        await ctx.set("skill_id_to_name", ev.get("skill_id_to_name"))
+        await ctx.store.set("student_id", ev.get("student_id"))
+        await ctx.store.set("obs", ev.get("obs"))
+        await ctx.store.set("output", ev.get("output"))
+        await ctx.store.set("skill_id_to_name", ev.get("skill_id_to_name"))
 
         result = await run_bkt_node({
-            "obs":            await ctx.get("obs"),
-            "output":         await ctx.get("output"),
-            "skill_id_to_name": await ctx.get("skill_id_to_name"),
+            "obs":            await ctx.store.get("obs"),
+            "output":         await ctx.store.get("output"),
+            "skill_id_to_name": await ctx.store.get("skill_id_to_name"),
         })
-        await ctx.set("diagnosis", result["diagnosis"])
+        await ctx.store.set("diagnosis", result["diagnosis"])
         return BKTDoneEvent()
 
     @step
     async def diagnose(self, ctx: Context, ev: BKTDoneEvent) -> DiagnosisDoneEvent:
         """Aggregate BKT data and call LLM for proficiency diagnosis."""
         result = await diagnose_node({
-            "student_id":     await ctx.get("student_id"),
-            "diagnosis":      await ctx.get("diagnosis"),
+            "student_id":     await ctx.store.get("student_id"),
+            "diagnosis":      await ctx.store.get("diagnosis"),
         })
-        await ctx.set("analysis", result["analysis"])
+        await ctx.store.set("analysis", result["analysis"])
         return DiagnosisDoneEvent()
 
     @step
     async def recommend(self, ctx: Context, ev: DiagnosisDoneEvent) -> StopEvent:
         """Fetch graph context and generate per-skill feedback concurrently."""
-        result = await recommend_node({"analysis": await ctx.get("analysis")})
+        result = await recommend_node({"analysis": await ctx.store.get("analysis")})
         return StopEvent(result=result["feedback"])
 
 
@@ -63,7 +63,7 @@ async def run_tutor(state: dict) -> dict:
         session_id=state["student_id"],
         tags=["production"],
     ):
-        workflow = TutorWorkflow(timeout=120, verbose=False)
+        workflow = TutorWorkflow(timeout=3600, verbose=False)
         feedback = await workflow.run(
             student_id=state["student_id"],
             obs=state["obs"],

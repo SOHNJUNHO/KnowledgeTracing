@@ -19,8 +19,9 @@ def get_llm_client() -> _RawAsyncOpenAI:
     return cast(_RawAsyncOpenAI, AsyncOpenAI(
         base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
         api_key="ollama",
+        timeout=3600.0,
     ))
 
 
 def get_llm_model() -> str:
-    return os.getenv("LLM_MODEL", "qwen3:8b")
+    return os.getenv("LLM_MODEL", "qwen3:8b-q4_K_M")

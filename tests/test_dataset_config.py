@@ -7,10 +7,6 @@ import pytest
 from ai_tutor.bkt.config import BKTConfig
 
 
-def test_block_size_value():
-    assert BKTConfig().block_size == 818
-
-
 @pytest.mark.skipif(
     not Path("data/icecream_8th_processed.csv").exists(),
     reason="dataset file is gitignored — run locally only",

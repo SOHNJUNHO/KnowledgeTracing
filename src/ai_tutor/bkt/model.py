@@ -117,9 +117,8 @@ class BKTransformer(nn.Module):
     def _run_bkt_loop(self, obs, output, params, logits):
         """Iterate the BKT update rule over block_size timesteps (padded to fixed length)."""
         B, T, _ = obs.shape
-        S = self.config.block_size  # constant loop count, ONNX-traceable
-
-        # Pad inputs to fixed length so range(S) is a Python constant at ONNX export time.
+        # S = self.config.block_size  # original: 818 — required for torch.compile on full infer()
+        S = 30  # hardcoded for inference; allows torch.compile to reuse compiled graph
         # Causal attention in _encode means params at real timesteps (0..T-1) are unaffected
         # by the padding. Only padded step outputs are corrupted; those are trimmed in the
         # service layer before returning to the caller.
@@ -133,7 +132,7 @@ class BKTransformer(nn.Module):
         latent   = torch.sigmoid(logits[..., 0].repeat((B, 1)))
 
         latent_list = []
-        for i in range(S):  # constant — ONNX-traceable
+        for i in range(S):  # constant
             latent = torch.clamp(latent, min=1e-5, max=1 - 1e-5)
             latent_list.append(latent)
             correct, latent = self.extract_latent_correct(

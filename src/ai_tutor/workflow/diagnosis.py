@@ -14,8 +14,9 @@ import os
 from collections import defaultdict
 from pathlib import Path
 
-from langfuse import get_client
-from openai import AsyncOpenAI as _RawAsyncOpenAI, RateLimitError, APIConnectionError, APITimeoutError
+from langfuse import get_client, observe
+from langfuse.model import TextPromptClient
+from openai import AsyncOpenAI as _RawAsyncOpenAI, APIConnectionError, APITimeoutError
 
 from ai_tutor.llm_client import get_llm_client, get_llm_model
 from pydantic import ValidationError
@@ -24,7 +25,24 @@ from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_excep
 from ai_tutor.workflow.schemas import BKTTimestep, AnalysisRecord
 
 # ---------------------------------------------------------------------------
-# BKTransformer lazy singleton — loaded once, compiled once
+# Proficiency thresholds — calibrate on the validation set
+# ---------------------------------------------------------------------------
+
+_LEVEL_HIGH_CUT = 0.90 #0.95 ~ 0.85
+_LEVEL_LOW_CUT  = 0.30 #0.3 ~ 0.35
+
+
+def _level_from_prior(prior: float) -> str:
+    """Map a BKT mastery prior in [0, 1] to a proficiency level (상/중/하)."""
+    if prior >= _LEVEL_HIGH_CUT:
+        return "상"
+    if prior >= _LEVEL_LOW_CUT:
+        return "중"
+    return "하"
+
+
+# ---------------------------------------------------------------------------
+# BKTransformer lazy singleton — loaded once, infer compiled once
 # ---------------------------------------------------------------------------
 
 _DEFAULT_CHECKPOINT = (
@@ -47,7 +65,7 @@ def _get_bkt_model():
         ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         m.load_state_dict(ckpt.get("state_dict", ckpt))
         m.eval()
-        m = torch.compile(m)
+        m.infer = torch.compile(m.infer, dynamic=True)
         _bkt_model = m
     return _bkt_model
 
@@ -62,6 +80,7 @@ def _infer_sync(obs_t, output_t):
         return _get_bkt_model().infer(obs_t, output_t)
 
 
+@observe(name="run_bkt")
 async def run_bkt_node(state: dict) -> dict:
     """Run BKTransformer inference on a single student's sequence.
 
@@ -70,6 +89,7 @@ async def run_bkt_node(state: dict) -> dict:
     """
     import torch
 
+    get_client().update_current_span(input=state)
     skill_id_to_name: dict = state["skill_id_to_name"]
 
     obs_t    = torch.tensor(state["obs"],    dtype=torch.float32)
@@ -138,19 +158,20 @@ def _aggregate_bkt_by_skill(diagnosis: dict) -> dict[int, dict]:
     return aggregated
 
 
-def _build_output_template(student_id: str, diagnosis: dict) -> dict:
-    template: list = []
-    seen: set = set()
-    for data in diagnosis.values():
-        sid = data["skill_id"]
-        if sid not in seen:
-            template.append({
-                "kc_name":           data["skill_name"],
-                "kc_id":             sid,
-                "proficiency_level": "?",
-                "reasoning":         "?",
-            })
-            seen.add(sid)
+def _build_output_template(
+    student_id: str,
+    aggregated: dict[int, dict],
+    levels: dict[int, str],
+) -> dict:
+    template = [
+        {
+            "kc_name":           agg["skill_name"],
+            "kc_id":             sid,
+            "proficiency_level": levels[sid],
+            "reasoning":         "?",
+        }
+        for sid, agg in aggregated.items()
+    ]
     return {student_id: template}
 
 
@@ -161,47 +182,57 @@ def _build_output_template(student_id: str, diagnosis: dict) -> dict:
 @retry(
     wait=wait_exponential(multiplier=1, min=1, max=10),
     stop=stop_after_attempt(3),
-    retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
+    retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
     reraise=True,
 )
-async def _call_diagnose_llm(client: _RawAsyncOpenAI, messages: list, prompt_obj) -> str:
+async def _call_diagnose_llm(
+    client: _RawAsyncOpenAI,
+    messages: list[dict],
+    prompt: TextPromptClient,
+) -> str:
     response = await client.chat.completions.create(
         model=get_llm_model(),
         messages=messages,
         response_format={"type": "json_object"},
-        temperature=0.2,
-        langfuse_prompt=prompt_obj,
+        temperature=prompt.config.get("temperature", 0.2),
+        langfuse_prompt=prompt,
     )
     return response.choices[0].message.content or ""
 
 
+@observe(name="diagnose")
 async def diagnose_node(state: dict) -> dict:
     """Call the LLM to assign proficiency levels from BKT summaries.
 
     Reads:   state['student_id'], state['diagnosis']
     Writes:  state['analysis']
     """
+    get_client().update_current_span(input=state)
     student_id = state["student_id"]
     aggregated = _aggregate_bkt_by_skill(state["diagnosis"])
-    template = _build_output_template(student_id, state["diagnosis"])
+    levels = {sid: _level_from_prior(agg["priors"][-1]) for sid, agg in aggregated.items()}
+    template = _build_output_template(student_id, aggregated, levels)
 
-    prompt_obj = get_client().get_prompt("diagnosis_prompt", label="production")
-    prompt = prompt_obj.compile(
+    prompt = get_client().get_prompt("diagnosis_prompt", label="production")
+    compiled = prompt.compile(
         aggregated_json=json.dumps({student_id: aggregated}, indent=2, ensure_ascii=False),
         template_json=json.dumps(template, indent=2, ensure_ascii=False),
     )
 
     client = get_llm_client()
     messages = [
-        {"role": "system", "content": "당신은 JSON 형식으로 정확하게 응답하는 학습 데이터 분석 전문가입니다."},
-        {"role": "user",   "content": prompt},
+        {"role": "system", "content": "당신은 Bayesian Knowledg Tracing(BKT) 데이터를 해석하여 학생의 지식 수준을 진단하는 학습 데이터 분석 전문가입니다."},
+        {"role": "user",   "content": compiled},
     ]
 
-    raw = json.loads(await _call_diagnose_llm(client, messages, prompt_obj))
+    raw = json.loads(await _call_diagnose_llm(client, messages, prompt))
     raw_list = raw.get(student_id, [])
 
     validated: list[dict] = []
     for record in raw_list:
+        kc_id = record.get("kc_id")
+        if kc_id in levels:
+            record["proficiency_level"] = levels[kc_id]
         try:
             validated.append(AnalysisRecord(**record).model_dump())
         except ValidationError as exc:
