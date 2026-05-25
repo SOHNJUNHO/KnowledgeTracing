@@ -76,6 +76,10 @@ def _get_driver() -> AsyncDriver:
     return _driver
 
 
+async def check_connectivity() -> None:
+    await _get_driver().verify_connectivity()
+
+
 async def close_driver() -> None:
     global _driver
     if _driver is not None:

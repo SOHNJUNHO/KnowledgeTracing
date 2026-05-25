@@ -70,6 +70,10 @@ def _get_bkt_model():
     return _bkt_model
 
 
+def is_bkt_loaded() -> bool:
+    return _bkt_model is not None
+
+
 # ---------------------------------------------------------------------------
 # Step 1: BKT inference in-process → build timestep records
 # ---------------------------------------------------------------------------

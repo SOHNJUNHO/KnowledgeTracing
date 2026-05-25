@@ -5,18 +5,22 @@ Exposes the full LlamaIndex Workflow pipeline (BKT → diagnose → recommend) a
 an HTTP endpoint so any frontend or batch caller can trigger it on demand.
 
 Run locally:
-    uvicorn ai_tutor.api:app --port 8000 --reload
+    uv run uvicorn ai_tutor.api:app --port 8000 --reload
 
-Environment variables: same as the CLI (see .env.example).
+Environment variables: see .env.example.
 """
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
-
 from ai_tutor.tools.neo4j_tool import close_driver
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 def _warmup_bkt() -> None:
@@ -37,23 +41,22 @@ async def lifespan(app: FastAPI):
         from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
         LlamaIndexInstrumentor().instrument()
     import torch
-    # torch.set_num_threads(2)  # default: all cores — causes contention across concurrent requests
     torch.set_num_threads(2)
     _warmup_bkt()
+    logger.info("startup.complete")
     yield
     from langfuse import get_client
     get_client().flush()
     await close_driver()
+    logger.info("shutdown.complete")
 
 
 app = FastAPI(title="AI Tutor API", version="1.0.0", lifespan=lifespan)
+Instrumentator().instrument(app).expose(app)
 
 
 def _get_run_tutor():
-    # Import lazily so helper/unit tests can import this module without the
-    # full workflow stack installed.
     from ai_tutor.workflow.workflow import run_tutor
-
     return run_tutor
 
 
@@ -94,9 +97,33 @@ class TutorResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+@app.get("/healthz")
+def healthz() -> dict:
+    """Liveness probe — is the process alive?"""
+    return {"ok": True}
+
+
+@app.get("/readyz")
+async def readyz() -> dict:
+    """Readiness probe — are all dependencies reachable?"""
+    from ai_tutor.workflow.diagnosis import is_bkt_loaded
+    from ai_tutor.tools.neo4j_tool import check_connectivity
+    from ai_tutor.llm_client import get_llm_client
+
+    if not is_bkt_loaded():
+        raise HTTPException(503, detail="bkt not loaded")
+
+    try:
+        await check_connectivity()
+    except Exception as exc:
+        raise HTTPException(503, detail=f"neo4j unreachable: {exc}") from exc
+
+    try:
+        await get_llm_client().models.list()
+    except Exception as exc:
+        raise HTTPException(503, detail=f"llm unreachable: {exc}") from exc
+
+    return {"ok": True}
 
 
 @app.post("/tutor", response_model=TutorResponse)
@@ -104,6 +131,8 @@ async def tutor(req: TutorRequest) -> TutorResponse:
     """Run the full AI Tutor pipeline for one student and return feedback."""
     if len(req.sequence) < 2:
         raise HTTPException(status_code=422, detail="sequence must have at least 2 timesteps")
+
+    logger.info("tutor.request", extra={"student_id": req.student_id, "n_steps": len(req.sequence)})
 
     seq    = req.sequence
     obs    = [seq[:-1]]   # (1, T-1, 2) as nested list
@@ -119,4 +148,6 @@ async def tutor(req: TutorRequest) -> TutorResponse:
     }
 
     result = await _get_run_tutor()(state)
-    return TutorResponse(student_id=req.student_id, feedback=result.get("feedback", []))
+    feedback = result.get("feedback", [])
+    logger.info("tutor.response", extra={"student_id": req.student_id, "n_feedback": len(feedback)})
+    return TutorResponse(student_id=req.student_id, feedback=feedback)
