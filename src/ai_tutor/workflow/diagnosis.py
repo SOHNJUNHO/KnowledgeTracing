@@ -1,18 +1,20 @@
 """
 Diagnosis pipeline: two workflow steps.
 
-  run_bkt   — runs BKTransformer inference in-process, builds timestep records.
+  run_bkt   — calls BKTransformer via Triton Inference Server (gRPC), builds
+              timestep records.
 
   diagnose  — aggregates per-timestep BKT data into compact per-skill summaries,
               then calls an LLM to assign a proficiency level (상/중/하) and
               natural-language reasoning per skill.
 """
 
-import asyncio
 import json
 import os
 from collections import defaultdict
-from pathlib import Path
+
+import numpy as np
+import tritonclient.grpc.aio as triton_grpc
 
 from langfuse import get_client, observe
 from langfuse.model import TextPromptClient
@@ -42,76 +44,89 @@ def _level_from_prior(prior: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# BKTransformer lazy singleton — loaded once, infer compiled once
+# Triton gRPC client — lazy singleton, one connection shared across requests
 # ---------------------------------------------------------------------------
 
-_DEFAULT_CHECKPOINT = (
-    Path(__file__).parent.parent / "bkt" / "checkpoints"
-    / "upgraded-best-epoch=09-val_auc=0.7993.pt"
-)
-
-_bkt_model = None
+_triton_client: triton_grpc.InferenceServerClient | None = None
 
 
-def _get_bkt_model():
-    global _bkt_model
-    if _bkt_model is None:
-        import torch
-        from ai_tutor.bkt.config import BKTConfig
-        from ai_tutor.bkt.model import BKTransformer
-
-        checkpoint_path = os.getenv("BKT_CHECKPOINT") or str(_DEFAULT_CHECKPOINT)
-        m = BKTransformer(BKTConfig())
-        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-        m.load_state_dict(ckpt.get("state_dict", ckpt))
-        m.eval()
-        m.infer = torch.compile(m.infer, dynamic=True)
-        _bkt_model = m
-    return _bkt_model
+def _get_triton_client() -> triton_grpc.InferenceServerClient:
+    global _triton_client
+    if _triton_client is None:
+        url = os.getenv("TRITON_URL", "localhost:8001")
+        _triton_client = triton_grpc.InferenceServerClient(url=url)
+    return _triton_client
 
 
-def is_bkt_loaded() -> bool:
-    return _bkt_model is not None
+async def close_triton_client() -> None:
+    global _triton_client
+    if _triton_client is not None:
+        await _triton_client.close()
+        _triton_client = None
+
+
+async def is_bkt_ready() -> bool:
+    try:
+        return await _get_triton_client().is_model_ready("bkt_transformer")
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
-# Step 1: BKT inference in-process → build timestep records
+# Step 1: BKT inference via Triton → build timestep records
 # ---------------------------------------------------------------------------
 
-def _infer_sync(obs_t, output_t):
-    import torch
-    with torch.no_grad():
-        return _get_bkt_model().infer(obs_t, output_t)
+async def _infer_triton(
+    obs_np: np.ndarray, output_np: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    client = _get_triton_client()
+
+    obs_in    = triton_grpc.InferInput("obs",    list(obs_np.shape),    "FP32")
+    output_in = triton_grpc.InferInput("output", list(output_np.shape), "FP32")
+    obs_in.set_data_from_numpy(obs_np)
+    output_in.set_data_from_numpy(output_np)
+
+    result = await client.infer(
+        model_name="bkt_transformer",
+        inputs=[obs_in, output_in],
+        outputs=[
+            triton_grpc.InferRequestedOutput("corrects"),
+            triton_grpc.InferRequestedOutput("latents"),
+            triton_grpc.InferRequestedOutput("params"),
+        ],
+    )
+    return (
+        result.as_numpy("corrects"),
+        result.as_numpy("latents"),
+        result.as_numpy("params"),
+    )
 
 
 @observe(name="run_bkt")
 async def run_bkt_node(state: dict) -> dict:
-    """Run BKTransformer inference on a single student's sequence.
+    """Run BKTransformer inference for a single student via Triton gRPC.
 
     Reads:   state['obs'], state['output'], state['skill_id_to_name']
     Writes:  state['diagnosis']
     """
-    import torch
-
     get_client().update_current_span(input=state)
     skill_id_to_name: dict = state["skill_id_to_name"]
 
-    obs_t    = torch.tensor(state["obs"],    dtype=torch.float32)
-    output_t = torch.tensor(state["output"], dtype=torch.float32)
-    T = obs_t.shape[1]
+    obs_np    = np.array(state["obs"],    dtype=np.float32)
+    output_np = np.array(state["output"], dtype=np.float32)
+    T = obs_np.shape[1]
 
-    # torch inference is CPU-bound — run in a thread to avoid blocking the event loop
-    corrects, latents, params = await asyncio.to_thread(_infer_sync, obs_t, output_t)
+    corrects, latents, params = await _infer_triton(obs_np, output_np)
 
     diagnosis: dict = {}
     for t in range(T):
-        skill_id = int(output_t[0, t, 0].item())
+        skill_id = int(output_np[0, t, 0])
         if skill_id == -1000:
             continue
         entry = BKTTimestep(
             skill_id=skill_id,
             skill_name=skill_id_to_name.get(skill_id, str(skill_id)),
-            actual_correct=int(output_t[0, t, 1].item()),
+            actual_correct=int(output_np[0, t, 1]),
             prior=float(latents[0, t, skill_id]),
             learning_rate=float(params[0, t, skill_id, 0]),
             guess=float(params[0, t, skill_id, 2]),
@@ -225,7 +240,7 @@ async def diagnose_node(state: dict) -> dict:
 
     client = get_llm_client()
     messages = [
-        {"role": "system", "content": "당신은 Bayesian Knowledg Tracing(BKT) 데이터를 해석하여 학생의 지식 수준을 진단하는 학습 데이터 분석 전문가입니다."},
+        {"role": "system", "content": "당신은 Bayesian Knowledg Tracing(BKT) 데이터를 해석하여 학생의 지식 수준을 진단하는 학습 데이터 분석 전문가입니다. /no_think"},
         {"role": "user",   "content": compiled},
     ]
 

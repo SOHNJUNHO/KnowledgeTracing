@@ -1,0 +1,18 @@
+FROM nvcr.io/nvidia/tritonserver:24.10-py3-min
+
+# CPU-only torch — same major.minor as pyproject.toml (torch==2.12.0+cpu)
+RUN pip install --no-cache-dir \
+    torch==2.12.0 --index-url https://download.pytorch.org/whl/cpu
+
+# torchtune==0.6.1 (pinned to match the version used to train the checkpoint)
+# Note: torchtune pulls heavy transitive deps (datasets, huggingface_hub, …).
+# Optimization for later: inline RotaryPositionalEmbeddings (~25 lines) to drop this dep.
+RUN pip install --no-cache-dir torchtune==0.6.1
+
+# Copy the BKT module only — skips full ai-tutor pip install to avoid the
+# requires-python>=3.11 constraint against Triton's Python 3.10 interpreter.
+COPY src/ai_tutor/__init__.py     /opt/bkt_module/ai_tutor/__init__.py
+COPY src/ai_tutor/bkt            /opt/bkt_module/ai_tutor/bkt
+
+ENV PYTHONPATH=/opt/bkt_module
+ENV BKT_CHECKPOINT=/opt/bkt_module/ai_tutor/bkt/checkpoints/upgraded-best-epoch=09-val_auc=0.7993.pt

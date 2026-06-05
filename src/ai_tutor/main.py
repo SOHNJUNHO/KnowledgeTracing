@@ -44,20 +44,22 @@ def csv_to_workflow_states(csv_path: Path) -> list[dict]:
 
 async def main() -> None:
     import datetime
-    import torch
-    torch.set_num_threads(2)
+    # [pre-Triton warmup — removed after Triton migration; warmup now runs inside
+    #  triton_server/.../model.py::TritonPythonModel.initialize()]
+    # import torch
+    # torch.set_num_threads(2)
 
     run_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     print(f"Run ID: {run_id}")
 
     from ai_tutor.workflow.workflow import run_tutor
     from ai_tutor.tools.neo4j_tool import close_driver
-    from ai_tutor.workflow.diagnosis import _get_bkt_model
-
-    m = _get_bkt_model()
-    dummy = torch.zeros(1, 2, 2)
-    with torch.no_grad():
-        m.infer(dummy, dummy)
+    # from ai_tutor.workflow.diagnosis import _get_bkt_model
+    #
+    # m = _get_bkt_model()
+    # dummy = torch.zeros(1, 2, 2)
+    # with torch.no_grad():
+    #     m.infer(dummy, dummy)
 
     states = csv_to_workflow_states(CSV_PATH)
     for s in states:

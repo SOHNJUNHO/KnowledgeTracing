@@ -19,9 +19,7 @@ dependencies = [
     "tenacity==9.1.4",
     "prometheus-fastapi-instrumentator",
     "python-json-logger",
-    "torch",
-    "torchao",
-    "torchtune",
+    "tritonclient[grpc]",
     "typer==0.24.1",
     "uvicorn[standard]",
 ]
@@ -31,6 +29,11 @@ ai-tutor = "ai_tutor.main:cli"
 ai-tutor-api = "ai_tutor.api:serve"
 
 [project.optional-dependencies]
+bkt = [
+    "torch",
+    "torchao",
+    "torchtune",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",

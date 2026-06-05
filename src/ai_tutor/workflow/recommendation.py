@@ -167,7 +167,7 @@ async def _process_skill(client: _RawAsyncOpenAI, kc_data: dict, analysis_by_id:
     messages = [
         {
             "role": "system",
-            "content": "당신은 숙련도 진단 결과와, 교육과정에 기반하여 학생에게 맞춤형 피드백을 제공하는 친절한 교육 전문가입니다.",
+            "content": "당신은 숙련도 진단 결과와, 교육과정에 기반하여 학생에게 맞춤형 피드백을 제공하는 친절한 교육 전문가입니다. /no_think",
         },
         {"role": "user", "content": compiled},
     ]
